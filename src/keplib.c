@@ -6,6 +6,10 @@ void input_coords(double t[], double *ms, double *t0p, double *ep, double *Pp, d
     double *t0m, double *em, double *Pm, double *Om, double *wm, double *im, double *mm, int *j, \
     double xp[], double yp[], double zp[], double xm[], double ym[], double zm[], double bp[], double bpm[], double theta[]);
 
+void input_coords_grad(double t[], double *ms, double *t0p, double *ep, double *Pp, double *Op, double *wp, double *ip, double *mp, \
+    double *t0m, double *em, double *Pm, double *Om, double *wm, double *im, double *mm, int *j, \
+    double bp[], double bpm[], double theta[], double dbp[], double dbpm[], double dtheta[]);
+
 void coords(double t[], double *ms, double *t0p, double *ep, double *Pp, double *Op, double *wp, double *ip, double *mp, \
     double *t0m, double *em, double *Pm, double *Om, double *wm, double *im, double *mm, int *j, \
     double xs[], double ys[], double zs[], double xp[], double yp[], double zp[], double xm[], double ym[], double zm[]);
@@ -14,6 +18,12 @@ void input_coords_(double *t, double ms, double t0p, double ep, double Pp, doubl
     double t0m, double em, double Pm, double Om, double wm, double im, double mm, int j, \
     double *xp, double *yp, double *zp, double *xm, double *ym, double *zm, double *bp, double *bpm, double *theta){
     input_coords(t, &ms, &t0p, &ep, &Pp, &Op, &wp, &ip, &mp, &t0m, &em, &Pm, &Om, &wm, &im, &mm, &j, xp, yp, zp, xm, ym, zm, bp, bpm, theta);
+}
+
+void input_coords_grad_(double *t, double ms, double t0p, double ep, double Pp, double Op, double wp, double ip, double mp, \
+    double t0m, double em, double Pm, double Om, double wm, double im, double mm, int j, double *bp, double *bpm, double *theta, \
+    double *dbp, double *dbpm, double *dtheta){
+    input_coords_grad(t, &ms, &t0p, &ep, &Pp, &Op, &wp, &ip, &mp, &t0m, &em, &Pm, &Om, &wm, &im, &mm, &j, bp, bpm, theta, dbp, dbpm, dtheta);
 }
 
 void coords_(double *t, double ms, double t0p, double ep, double Pp, double Op, double wp, double ip, double mp, \
