@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+void kepler_solve(double M[], double *e, double cosf[], double sinf[], double f_e[], double f_M[], int *j);
+
 void input_coords(double t[], double *ms, double *t0p, double *ep, double *Pp, double *Op, double *wp, double *ip, double *mp, \
     double *t0m, double *em, double *Pm, double *Om, double *wm, double *im, double *mm, int *j, \
     double xp[], double yp[], double zp[], double xm[], double ym[], double zm[], double bp[], double bpm[], double theta[]);
@@ -30,4 +32,8 @@ void coords_(double *t, double ms, double t0p, double ep, double Pp, double Op, 
     double t0m, double em, double Pm, double Om, double wm, double im, double mm, int j, \
     double *xs, double *ys, double *zs, double *xp, double *yp, double *zp, double *xm, double *ym, double *zm){
     coords(t, &ms, &t0p, &ep, &Pp, &Op, &wp, &ip, &mp, &t0m, &em, &Pm, &Om, &wm, &im, &mm, &j, xs, ys, zs, xp, yp, zp, xm, ym, zm);
+}
+
+void kepler_solve_(double *M, double e, double *cosf, double *sinf, double *f_e, double *f_M, int j){
+    kepler_solve(M, &e, cosf, sinf, f_e, f_M, &j);
 }
