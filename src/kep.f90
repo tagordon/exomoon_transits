@@ -249,7 +249,7 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     real*8 :: np, nm, ap, am
     real*8 :: mrp, mrm, comegap, somegap, comegam, somegam
     real*8 :: cwp, swp, cip, cwm, swm, cim, sip, sim
-    real*8, dimension(j) :: x, y, z, xbc, ybc, zbc
+    real*8, dimension(j) :: x, y, xbc, ybc
     real*8, dimension(j) :: r, cosf, sinf, cosfw, sinfw
     real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
@@ -262,14 +262,12 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     real*8 :: np_Pp, nm_Pm
     real*8 :: np_ms, np_mp, np_mm, nm_mp, nm_mm
     real*8 :: ap_m, am_m, am_Pm, ap_Pp, am_nm, ap_np
-    real*8 :: comegam_Om, somegam_Om, cwm_wm, swm_wm, cim_im, sim_im
     real*8 :: mtot, omtot2, mrp_mm, mrp_mp, mrm_mp, mrm_mm, mr
-    real*8, dimension(j) :: r_n, r_t0, r_e, r_a, r_cosf
+    real*8, dimension(j) :: r_t0, r_e, r_cosf
     real*8, dimension(j) :: f_M, f_e
     real*8, dimension(j) :: ccmss, cspsc, scpcs, ssmcc
-    real*8, dimension(j) :: r_m, r_Pp, r_Pm
-    
-    
+    real*8, dimension(j) :: r_Pp, r_Pm
+        
     np = 2 * pi / Pp
     np_Pp = -np / Pp
     
@@ -299,13 +297,7 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     swm = Sin(wm)
     cim = Cos(im)
     sim = Sin(im)
-    comegam_Om = -somegam
-    somegam_Om = comegam
-    cwm_wm = -swm
-    swm_wm = cwm
-    cim_im = -sim
-    sim_im = cim
-    
+
     mtot = mp + mm
     omtot2 = 1.d0 / (mtot * mtot)
     
@@ -316,30 +308,27 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     mrp_mp = mm * omtot2
     mrm_mm = mrp_mm
     mrm_mp = mrp_mp
-    mr = mp / mrm
+    mr = mp / mr
     
     call solve_kepler_grad_new(t, np * (t - t0p), ep, cosf, sinf, f_M, f_e, j)
     
     r = ap * (1.d0 - ep * ep) / (1.d0 + ep * cosf)
     r_cosf = ap * ep * (ep * ep - 1.d0) / (1.d0 + ep * cosf)**2.d0
-    r_n = -r_cosf * sinf * f_M * (t - t0p) - 2 * r / (3.d0 * np)
     r_t0 = r_cosf * sinf * f_M * np
     r_e = -r_cosf * sinf * f_e - ap * (cosf + 2 * ep + cosf * ep * ep) / (1.d0 + ep * cosf)**2.d0
-    r_a = r / ap
-    r_Pp = r_n * np_Pp
+    r_Pp = -(r_cosf * sinf * f_M * (t - t0p) + 2 * r / (3.d0 * np)) * np_Pp
      
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
-    r_m = r_a * ap_m
     
     ccmss = comegap * cosfw - somegap * sinfw * cip
     cspsc = comegap * sinfw + somegap * cosfw * cip
     scpcs = somegap * cosfw + comegap * sinfw * cip
     ssmcc = somegap * sinfw - comegap * cosfw * cip
     xbc = -r * ccmss
-    xbc_m = - r_m * ccmss
+    xbc_m = - r * ap_m * ccmss / ap
     ybc = -r * scpcs
-    ybc_m = - r_m * scpcs
+    ybc_m = - r * ap_m * scpcs / ap
     
     dxp(1, :) = xbc_m
     dxm(1, :) = xbc_m
@@ -382,25 +371,21 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     
     r = am * (1.d0 - em * em) / (1.d0 + em * cosf)
     r_cosf = am * em * (em * em - 1.d0) / (1.d0 + em * cosf)**2.d0
-    r_n = -r_cosf * sinf * f_M * (t - t0m) - 2 * r / (3.d0 * nm)
     r_t0 = r_cosf * sinf * f_M * nm
     r_e = -r_cosf * sinf * f_e - am * (cosf + 2 * em + cosf * em * em) / (1.d0 + em * cosf)**2.d0
-    r_a = r / am
-    r_Pm = r_n * nm_Pm
+    r_Pm = -(r_cosf * sinf * f_M * (t - t0m) + 2 * r / (3.d0 * nm)) * nm_Pm
      
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
-
-    r_m = r_a * am_m
     
     ccmss = comegam * cosfw - somegam * sinfw * cim
     cspsc = comegam * sinfw + somegam * cosfw * cim
     scpcs = somegam * cosfw + comegam * sinfw * cim
     ssmcc = somegam * sinfw - comegam * cosfw * cim
     x = -r * ccmss
-    x_m = - r_m * ccmss
+    x_m = - r * am_m * ccmss / am
     y = -r * scpcs
-    y_m = - r_m * scpcs
+    y_m = - r * am_m * scpcs / am
         
     ! ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, Pm, wm, Om, im, mm
     xp = xbc + x * mrp
@@ -410,7 +395,7 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dxp(11, :) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
     dxp(12, :) = r * cspsc * mrp
     dxp(13, :) = r * scpcs * mrp
-    dxp(14, :) = r * somegam * sinfw * cim_im * mrp
+    dxp(14, :) = -r * somegam * sinfw * sim * mrp
     dxp(15, :) = xbc_m + x_m * mrp + x * mrp_mm
     
     yp = ybc + y * mrp
@@ -421,29 +406,29 @@ subroutine coords_grad(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dyp(11, :) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
     dyp(12, :) = r * ssmcc * mrp
     dyp(13, :) = - r * ccmss * mrp
-    dyp(14, :) = - r * comegam * sinfw * cim_im * mrp
+    dyp(14, :) = r * comegam * sinfw * sim * mrp
     dyp(15, :) = ybc_m + y_m * mrp + y * mrp_mm
 
     xm = xbc + x * mrm
 
     dxm(8, :) = xbc_m + x * mrm_mp + x_m * mrm
-    dxm(9, :) = dxp(9, :) * mr
-    dxm(10, :) = dxp(10, :) * mr
-    dxm(11, :) = dxp(11, :) * mr
-    dxm(12, :) = dxp(12, :) * mr
-    dxm(13, :) = dxp(13, :) * mr
-    dxm(14, :) = dxp(14, :) * mr
+    dxm(9, :) = -dxp(9, :) * mr
+    dxm(10, :) = -dxp(10, :) * mr
+    dxm(11, :) = -dxp(11, :) * mr
+    dxm(12, :) = -dxp(12, :) * mr
+    dxm(13, :) = -dxp(13, :) * mr
+    dxm(14, :) = -dxp(14, :) * mr
     dxm(15, :) = xbc_m + x * mrm_mm + x_m * mrm
     
     ym = ybc + y * mrm
 
     dym(8, :) = ybc_m + y * mrm_mp + y_m * mrm
-    dym(9, :) = dyp(9, :) * mr
-    dym(10, :) = dyp(10, :) * mr
-    dym(11, :) = dyp(11, :) * mr
-    dym(12, :) = dyp(12, :) * mr
-    dym(13, :) = dyp(13, :) * mr
-    dym(14, :) = dyp(14, :) * mr
+    dym(9, :) = -dyp(9, :) * mr
+    dym(10, :) = -dyp(10, :) * mr
+    dym(11, :) = -dyp(11, :) * mr
+    dym(12, :) = -dyp(12, :) * mr
+    dym(13, :) = -dyp(13, :) * mr
+    dym(14, :) = -dyp(14, :) * mr
     dyp(15, :) = ybc_m + y * mrm_mm + y_m * mrm
     
 end

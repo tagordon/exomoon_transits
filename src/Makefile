@@ -11,13 +11,13 @@ phot: phot.o
 	gcc -O3 -c -Wall -Werror -fpic photlib.c
 
 kep.o: 
-	gfortran -Ofast -c -unroll=5 kep.f90
+	gfortran -Ofast -c -unroll=5 -fmax-stack-var-size=100000 kep.f90
 	
 kep_new.o:
-	gfortran -Ofast -c -unroll=5 kep_new.f90
+	gfortran -Ofast -c -unroll=5 -fmax-stack-var-size=100000 kep_new.f90
 
 phot.o: 
-	gfortran -Ofast -c -unroll=5 phot.f90
+	gfortran -Ofast -c -unroll=5 -fmax-stack-var-size=100000 phot.f90
 
 clean: 
 	rm *.o
