@@ -96,7 +96,7 @@ subroutine grad_kepler_solve(M, ecc, cosf, sinf, f_e, f_M, j) bind(C, name="grad
 end
 
 subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
-    &t0m, em, Pm, wm, Om, im, mm, j, &
+    &t0m, em, Pm, Om, wm, im, mm, j, &
     &xp, yp, zp, xm, ym, zm) bind(C, name="coords")
     
     integer (c_int), bind(C) :: j
@@ -161,7 +161,7 @@ subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
 end
 
 subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
-    &t0m, em, Pm, wm, Om, im, mm, j, &
+    &t0m, em, Pm, Om, wm, im, mm, j, &
     &xp, yp, xm, ym, dxp, dyp, dxm, dym) bind(C, name="grad_coords")
 
     integer (c_int), bind(C) :: j
@@ -258,10 +258,10 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dxm(3, :) = dxp(3, :)
     dxp(4, :) = - r_Pp * ccmss + r * f_M * (t - t0p) * np_Pp * cspsc
     dxm(4, :) = dxp(4, :)
-    dxp(5, :) = r * scpcs
-    dxm(5, :) = dxp(5, :)
-    dxp(6, :) = r * cspsc
+    dxp(6, :) = r * scpcs
     dxm(6, :) = dxp(6, :)
+    dxp(5, :) = r * cspsc
+    dxm(5, :) = dxp(5, :)
     dxp(7, :) = - r * somegap * sinfw * sip
     dxm(7, :) = dxp(7, :)
         
@@ -278,11 +278,11 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dyp(4, :) = - r_Pp * scpcs + r * f_M * (t - t0p) * np_Pp * ssmcc
     dym(4, :) = dyp(4, :)
     ! Op
-    dyp(5, :) = - r * ccmss
-    dym(5, :) = dyp(5, :)
-    ! wp
-    dyp(6, :) = r * ssmcc
+    dyp(6, :) = - r * ccmss
     dym(6, :) = dyp(6, :)
+    ! wp
+    dyp(5, :) = r * ssmcc
+    dym(5, :) = dyp(5, :)
     ! ip
     dyp(7, :) = r * comegap * sinfw * sip
     dym(7, :) = dyp(7, :)
@@ -314,8 +314,8 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dxp(9, :) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrp
     dxp(10, :) = (- r_e * ccmss + r * f_e * cspsc) * mrp
     dxp(11, :) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
-    dxp(12, :) = r * cspsc * mrp
-    dxp(13, :) = r * scpcs * mrp
+    dxp(13, :) = r * cspsc * mrp
+    dxp(12, :) = r * scpcs * mrp
     dxp(14, :) = -r * somegam * sinfw * sim * mrp
     dxp(15, :) = xbc_m + x_m * mrp + x * mrp_mm
     
@@ -325,8 +325,8 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dyp(9, :) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrp
     dyp(10, :) = (- r_e * scpcs + r * f_e * ssmcc) * mrp
     dyp(11, :) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
-    dyp(12, :) = r * ssmcc * mrp
-    dyp(13, :) = - r * ccmss * mrp
+    dyp(13, :) = r * ssmcc * mrp
+    dyp(12, :) = - r * ccmss * mrp
     dyp(14, :) = r * comegam * sinfw * sim * mrp
     dyp(15, :) = ybc_m + y_m * mrp + y * mrp_mm
 
@@ -336,8 +336,8 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dxm(9, :) = -dxp(9, :) * mr
     dxm(10, :) = -dxp(10, :) * mr
     dxm(11, :) = -dxp(11, :) * mr
-    dxm(12, :) = -dxp(12, :) * mr
     dxm(13, :) = -dxp(13, :) * mr
+    dxm(12, :) = -dxp(12, :) * mr
     dxm(14, :) = -dxp(14, :) * mr
     dxm(15, :) = xbc_m + x * mrm_mm + x_m * mrm
     
@@ -347,15 +347,15 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     dym(9, :) = -dyp(9, :) * mr
     dym(10, :) = -dyp(10, :) * mr
     dym(11, :) = -dyp(11, :) * mr
-    dym(12, :) = -dyp(12, :) * mr
     dym(13, :) = -dyp(13, :) * mr
+    dym(12, :) = -dyp(12, :) * mr
     dym(14, :) = -dyp(14, :) * mr
     dyp(15, :) = ybc_m + y * mrm_mm + y_m * mrm
     
 end
 
 subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
-    &t0m, em, Pm, wm, Om, im, mm, j, &
+    &t0m, em, Pm, Om, wm, im, mm, j, &
     &bp, bpm, theta, dbp, dbpm, dtheta) bind(C, name="grad_impacts")
 
     integer :: i
@@ -437,7 +437,7 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
 end
 
 subroutine impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
-    &t0m, em, Pm, wm, Om, im, mm, j, bp, bpm, theta) bind(C, name="impacts")
+    &t0m, em, Pm, Om, wm, im, mm, j, bp, bpm, theta) bind(C, name="impacts")
 
     integer :: i
     real*8 :: a, b, c, tmp, mu
