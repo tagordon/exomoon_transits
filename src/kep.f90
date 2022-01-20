@@ -95,29 +95,24 @@ subroutine grad_kepler_solve(M, ecc, cosf, sinf, f_e, f_M, j) bind(C, name="grad
     end if
 end
 
-subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, &
     &xp, yp, zp, xm, ym, zm) bind(C, name="coords")
     
     integer (c_int), bind(C) :: j
-    real*8 :: np, nm, ap, am
-    real*8 :: mrp, mrm, mtot, comegap, somegap, comegam, somegam
+    real*8 :: np, nm
+    real*8 :: mrp, mrm, mtot, comegam, somegam
     real*8 :: cwp, swp, cip, cwm, swm, cim
     real*8, dimension(j) :: x, y, z, xbc, ybc, zbc
     real*8, dimension(j) :: r, cosf, sinf, cosfw, sinfw
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), dimension(j), intent(out) :: xp, yp, zp, xm, ym, zm
             
     np = 2 * pi / Pp    
     nm = 2 * pi / Pm
-    
-    ap = (G * (ms + mp + mm) / (np ** 2.d0)) ** o3
-    am = (G * (mp + mm) / (nm ** 2.d0)) ** o3
-    
-    comegap = Cos(Op)
-    somegap = Sin(Op)
+
     cwp = Cos(wp)
     swp = Sin(wp)
     cip = Cos(ip)
@@ -128,17 +123,16 @@ subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     swm = Sin(wm)
     cim = Cos(im)
 
-    mtot = mp + mm
-    mrp = -mm / mtot
-    mrm = mp / mtot
+    mrp = - 1.d0 / (1.d0 + mm)
+    mrm = - mm * mrp
     
     call kepler_solve(np * (t - t0p), ep, cosf, sinf, j)
     
     r = ap * (1.d0 - ep * ep) / (1.d0 + ep * cosf)
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
-    xbc = -r * (comegap * cosfw - somegap * sinfw * cip)
-    ybc = -r * (somegap * cosfw + comegap * sinfw * cip)
+    xbc = -r * cosfw
+    ybc = -r * sinfw * cip
     zbc = r * sinfw * Sin(ip)
     
     call kepler_solve(nm * (t - t0m), em, cosf, sinf, j)
@@ -160,23 +154,23 @@ subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     
 end
 
-subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, &
     &xp, yp, xm, ym, dxp, dyp, dxm, dym) bind(C, name="grad_coords")
 
     integer (c_int), bind(C) :: j
-    real*8 :: np, nm, ap, am
-    real*8 :: mrp, mrm, comegap, somegap, comegam, somegam
+    real*8 :: np, nm
+    real*8 :: mrp, mrm, comegam, somegam
     real*8 :: cwp, swp, cip, cwm, swm, cim, sip, sim
     real*8, dimension(j) :: x, y, xbc, ybc
     real*8, dimension(j) :: r, cosf, sinf, cosfw, sinfw, denom
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), dimension(j), intent(out) :: xp, yp, xm, ym
     
-    real (c_double), bind(C), dimension(15, j), intent(out) :: dxp, dyp, dxm, dym
-    real*8, dimension(j) :: xbc_m, ybc_m, x_m, y_m
+    real (c_double), bind(C), dimension(14, j), intent(out) :: dxp, dyp, dxm, dym
+    real*8, dimension(j) :: xbc_a, ybc_a, x_a, y_a
     
     real*8 :: np_Pp, nm_Pm
     real*8 :: np_ms, np_mp, np_mm, nm_mp, nm_mm
@@ -193,18 +187,6 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     nm = 2 * pi / Pm
     nm_Pm = -nm / Pm
     
-    ap = (G * (ms + mp + mm) / (np ** 2.d0)) ** o3
-    ap_m = G / (3 * (ap * np) ** 2.d0)
-    ap_np = - 2 * ap / (3 * np)
-    ap_Pp = ap_np * np_Pp
-
-    am = (G * (mp + mm) / (nm ** 2.d0)) ** o3
-    am_m = G / (3 * (am * nm) ** 2.d0)
-    am_nm = - 2 * am / (3 * nm)
-    am_Pm = am_nm * nm_Pm
-    
-    comegap = Cos(Op)
-    somegap = Sin(Op)
     cwp = Cos(wp)
     swp = Sin(wp)
     cip = Cos(ip)
@@ -217,17 +199,11 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     cim = Cos(im)
     sim = Sin(im)
 
-    mtot = mp + mm
-    omtot2 = 1.d0 / (mtot * mtot)
+    mrp = - 1.d0 / (1.d0 + mm)
+    mrm = - mm * mrp
     
-    mrp = -mm / mtot
-    mrm = mp / mtot
-    
-    mrp_mm = -mp * omtot2
-    mrp_mp = mm * omtot2
+    mrp_mm = - mrp / (1.d0 + mm)
     mrm_mm = mrp_mm
-    mrm_mp = mrp_mp
-    mr = mp / mm
     
     call grad_kepler_solve(np * (t - t0p), ep, cosf, sinf, f_e, f_M, j)
     
@@ -241,33 +217,31 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
     
-    ccmss = comegap * cosfw - somegap * sinfw * cip
-    cspsc = comegap * sinfw + somegap * cosfw * cip
-    scpcs = somegap * cosfw + comegap * sinfw * cip
-    ssmcc = somegap * sinfw - comegap * cosfw * cip
+    ccmss = cosfw
+    cspsc = sinfw
+    scpcs = sinfw * cip
+    ssmcc = - cosfw * cip
     xbc = -r * ccmss
-    xbc_m = - r * ap_m * ccmss / ap
+    xbc_a = - r * ccmss / ap
     ybc = -r * scpcs
-    ybc_m = - r * ap_m * scpcs / ap
+    ybc_a = - r * scpcs / ap
     
-    dxp(1, :) = xbc_m
-    dxm(1, :) = xbc_m
+    dxp(1, :) = xbc_a
+    dxm(1, :) = xbc_a
     dxp(2, :) = - r_t0 * ccmss - r * f_M * np * cspsc
     dxm(2, :) = dxp(2, :)
     dxp(3, :) = - r_e * ccmss + r * f_e * cspsc
     dxm(3, :) = dxp(3, :)
     dxp(4, :) = - r_Pp * ccmss + r * f_M * (t - t0p) * np_Pp * cspsc
     dxm(4, :) = dxp(4, :)
-    dxp(6, :) = r * scpcs
-    dxm(6, :) = dxp(6, :)
     dxp(5, :) = r * cspsc
     dxm(5, :) = dxp(5, :)
-    dxp(7, :) = - r * somegap * sinfw * sip
-    dxm(7, :) = dxp(7, :)
+    dxp(6, :) = 0.d0
+    dxm(6, :) = dxp(6, :)
         
     ! ms
-    dyp(1, :) = ybc_m
-    dym(1, :) = ybc_m
+    dyp(1, :) = ybc_a
+    dym(1, :) = ybc_a
     ! t0p
     dyp(2, :) = - r_t0 * scpcs - r * f_M * np * ssmcc
     dym(2, :) = dyp(2, :)
@@ -277,15 +251,12 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     ! Pp
     dyp(4, :) = - r_Pp * scpcs + r * f_M * (t - t0p) * np_Pp * ssmcc
     dym(4, :) = dyp(4, :)
-    ! Op
-    dyp(6, :) = - r * ccmss
-    dym(6, :) = dyp(6, :)
     ! wp
     dyp(5, :) = r * ssmcc
     dym(5, :) = dyp(5, :)
     ! ip
-    dyp(7, :) = r * comegap * sinfw * sip
-    dym(7, :) = dyp(7, :)
+    dyp(6, :) = r * sinfw * sip
+    dym(6, :) = dyp(6, :)
     
     call grad_kepler_solve(nm * (t - t0m), em, cosf, sinf, f_e, f_M, j)
     
@@ -304,57 +275,57 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     scpcs = somegam * cosfw + comegam * sinfw * cim
     ssmcc = somegam * sinfw - comegam * cosfw * cim
     x = -r * ccmss
-    x_m = - r * am_m * ccmss / am
+    x_a = -r * ccmss / am
     y = -r * scpcs
-    y_m = - r * am_m * scpcs / am
+    y_a = -r * scpcs / am
         
     ! ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, Pm, wm, Om, im, mm
     xp = xbc + x * mrp
-    dxp(8, :) = xbc_m + x * mrp_mp + x_m * mrp
-    dxp(9, :) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrp
-    dxp(10, :) = (- r_e * ccmss + r * f_e * cspsc) * mrp
-    dxp(11, :) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
-    dxp(13, :) = r * cspsc * mrp
+    dxp(7, :) = x_a * mrp
+    dxp(8, :) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrp
+    dxp(9, :) = (- r_e * ccmss + r * f_e * cspsc) * mrp
+    dxp(10, :) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
+    dxp(11, :) = r * cspsc * mrp
     dxp(12, :) = r * scpcs * mrp
-    dxp(14, :) = -r * somegam * sinfw * sim * mrp
-    dxp(15, :) = xbc_m + x_m * mrp + x * mrp_mm
+    dxp(13, :) = -r * somegam * sinfw * sim * mrp
+    dxp(14, :) = x * mrp_mm
     
     yp = ybc + y * mrp
 
-    dyp(8, :) = ybc_m + y * mrp_mp + y_m * mrp
-    dyp(9, :) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrp
-    dyp(10, :) = (- r_e * scpcs + r * f_e * ssmcc) * mrp
-    dyp(11, :) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
-    dyp(13, :) = r * ssmcc * mrp
+    dyp(7, :) = y_a * mrp
+    dyp(8, :) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrp
+    dyp(9, :) = (- r_e * scpcs + r * f_e * ssmcc) * mrp
+    dyp(10, :) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
+    dyp(11, :) = r * ssmcc * mrp
     dyp(12, :) = - r * ccmss * mrp
-    dyp(14, :) = r * comegam * sinfw * sim * mrp
-    dyp(15, :) = ybc_m + y_m * mrp + y * mrp_mm
+    dyp(13, :) = r * comegam * sinfw * sim * mrp
+    dyp(14, :) = y * mrp_mm
 
     xm = xbc + x * mrm
 
-    dxm(8, :) = xbc_m + x * mrm_mp + x_m * mrm
-    dxm(9, :) = -dxp(9, :) * mr
-    dxm(10, :) = -dxp(10, :) * mr
-    dxm(11, :) = -dxp(11, :) * mr
-    dxm(13, :) = -dxp(13, :) * mr
-    dxm(12, :) = -dxp(12, :) * mr
-    dxm(14, :) = -dxp(14, :) * mr
-    dxm(15, :) = xbc_m + x * mrm_mm + x_m * mrm
+    dxm(7, :) = x_a * mrm
+    dxm(8, :) = -dxp(8, :) * mm
+    dxm(9, :) = -dxp(9, :) * mm
+    dxm(10, :) = -dxp(10, :) * mm
+    dxm(11, :) = -dxp(11, :) * mm
+    dxm(12, :) = -dxp(12, :) * mm
+    dxm(13, :) = -dxp(13, :) * mm
+    dxm(14, :) = x * mrm_mm
     
     ym = ybc + y * mrm
 
-    dym(8, :) = ybc_m + y * mrm_mp + y_m * mrm
-    dym(9, :) = -dyp(9, :) * mr
-    dym(10, :) = -dyp(10, :) * mr
-    dym(11, :) = -dyp(11, :) * mr
-    dym(13, :) = -dyp(13, :) * mr
-    dym(12, :) = -dyp(12, :) * mr
-    dym(14, :) = -dyp(14, :) * mr
-    dyp(15, :) = ybc_m + y * mrm_mm + y_m * mrm
+    dym(7, :) = y_a * mrm
+    dym(8, :) = -dyp(8, :) * mm
+    dym(9, :) = -dyp(9, :) * mm
+    dym(10, :) = -dyp(10, :) * mm
+    dym(11, :) = -dyp(11, :) * mm
+    dym(12, :) = -dyp(12, :) * mm
+    dym(13, :) = -dyp(13, :) * mm
+    dym(14, :) = y * mrm_mm
     
 end
 
-subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine grad_impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, &
     &bp, bpm, theta, dbp, dbpm, dtheta) bind(C, name="grad_impacts")
 
@@ -364,15 +335,15 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     real*8, dimension(j) :: xp, yp, xm, ym
     real*8, dimension(j) :: bm_xm, bm_ym, bp_xp, bp_yp, bpm_xm, bpm_ym, bpm_xp, bpm_yp
     real*8, dimension(j) :: theta_bp, theta_bpm, theta_bm
-    real*8, dimension(15, j) :: dxp, dyp, dxm, dym, dbm
+    real*8, dimension(14, j) :: dxp, dyp, dxm, dym, dbm
     integer (c_int), bind(C) :: j
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), intent(out), dimension(j) :: bp, bpm, theta
-    real (c_double), bind(C), intent(out), dimension(15, j) :: dbp, dbpm, dtheta
+    real (c_double), bind(C), intent(out), dimension(14, j) :: dbp, dbpm, dtheta
     
-    call grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, &
+    call grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, t0m, em, &
                 Pm, wm, Om, im, mm, j, xp, yp, xm, ym, &
                 dxp, dyp, dxm, dym)
     
@@ -419,7 +390,7 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     theta_bp = ((bpm - bm) * (bpm + bm) - bp2) / (2 * bp2 * bpm * sth)
     theta_bpm = ((bp - bm) * (bp + bm) - bpm2) / (2 * bpm2 * bp * sth)
     
-    do i=1,15,1
+    do i=1,14,1
         dbm(i, :) = bm_xm * dxm(i, :) + bm_ym * dym(i, :)
         dbp(i, :) = bp_xp * dxp(i, :) + bp_yp * dyp(i, :)
         dbpm(i, :) = bpm_xm * dxm(i, :) + bpm_ym * dym(i, :) &
@@ -436,7 +407,7 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
             
 end
 
-subroutine impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, bp, bpm, theta) bind(C, name="impacts")
 
     integer :: i
@@ -444,12 +415,12 @@ subroutine impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     real*8, dimension(j) :: bm, bm2, bp2, bpm2
     real*8, dimension(j) :: xp, yp, xm, ym, zp, zm
     integer (c_int), bind(C) :: j
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), intent(out), dimension(j) :: bp, bpm, theta
     
-    call coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, &
+    call coords(t, ap, t0p, ep, Pp, wp, ip, am, t0m, em, &
                 Pm, wm, Om, im, mm, j, xp, yp, zp, xm, ym, zm)
     
     bm2 = xm**2.d0 + ym**2.d0
