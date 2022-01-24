@@ -32,7 +32,7 @@ subroutine kepler_solve(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve")
         x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
         
         do i=1,j,1
-            err = 10.d0
+            err = 1.d0
             do while (abs(err) .gt. tol)
                 err = - (E(i) - ecc * Sin(E(i)) - M(i)) / (1.d0 - ecc * Cos(E(i)))
                 E(i) = E(i) + err
@@ -46,6 +46,150 @@ subroutine kepler_solve(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve")
         cosf = (1.d0 - tanfhalf2) * denom
         sinf = 2 * tanfhalf * denom
     end if
+end
+
+! copied from DFM's exoplanet code
+function EAstart(M, ecc)
+
+    real*8 :: EAstart
+    real*8 :: M, ecc
+    real*8 ome, sqrt_ome, chi, Lam, S, sigma, s2, s4, denom, E
+    
+    ome = 1.d0 - ecc
+    sqrt_ome = Sqrt(ome)
+    chi = M / (sqrt_ome * ome)
+    Lam = Sqrt(8.d0 + 9 * chi * chi)
+    S = (Lam + 3 * chi) ** (1.d0 / 3.d0)
+    sigma = 6 * chi / (2.d0 + S * S + 4.d0 / (S * S))
+    s2 = sigma * sigma
+    s4 = s2 * s2
+    
+    denom = 1.d0 / (s2 + 2.d0)
+    E = sigma * (1.d0 + s2 * ome * denom * ((s2 + 20.d0) / 60.d0 &
+        + s2 * ome * denom * denom * (s2 * s4 + 25 * s4 + 340 * s2 + 840) / 1400))
+    EAstart = E * sqrt_ome
+end
+
+! pretty much verbatim from DFM's exoplanet code 
+subroutine kepler_solve_RPP(M, ecc, cosf, sinf, j)
+
+    integer :: j, i, k
+    real*8 :: ecc
+    real*8, dimension(j) :: M, cosf, sinf, tanfhalf, tanfhalf2, d
+    real*8 g2s_e, g3s_e, g4s_e, g5s_e, g6s_e
+    real*8, dimension(0:12) :: bounds
+    real*8, dimension(0:8) :: EA_tab
+    real*8 :: MA, EA, sE, cE, x, y
+    real*8 :: B0, B1, B2, dx, idx
+    integer :: MAsign, sig
+    real*8 :: one_over_ecc
+    real*8 :: num, denom, dEA
+    
+    g2s_e = 0.2588190451025207623489 * ecc
+    g3s_e = 0.5 * ecc
+    g4s_e = 0.7071067811865475244008 * ecc
+    g5s_e = 0.8660254037844386467637 * ecc
+    g6s_e = 0.9659258262890682867497 * ecc
+    
+    bounds(0) = 0.d0
+    bounds(1) = pi / 12.d0 - g2s_e
+    bounds(2) = pi / 6.d0 - g3s_e
+    bounds(3) = pi / 4.d0 - g4s_e
+    bounds(4) = pi / 3.d0 - g5s_e
+    bounds(5) = 5 * pi / 12.d0 - g6s_e
+    bounds(6) = pi / 2.d0 - ecc
+    bounds(7) = 7 * pi / 12.d0 - g6s_e
+    bounds(8) = 2 * pi / 3.d0 - g5s_e
+    bounds(9) = 3 * pi / 4.d0 - g4s_e
+    bounds(10) = 5 * pi / 6.d0 - g3s_e
+    bounds(11) = 11 * pi / 12.d0 - g2s_e
+    bounds(12) = pi
+    
+    if (ecc .gt. 1.d-17) then
+        one_over_ecc = 1.d0 / ecc
+        end if 
+    
+    do i=1,j,1
+        MAsign = 1
+        MA = Mod(M(i), 2 * pi)
+        if (MA .gt. pi) then 
+            MAsign = -1
+            MA = 2 * pi - MA
+        end if
+    
+        if (2 * MA + 1.d0 - ecc .lt. 0.2d0) then 
+            EA = EAstart(M(i), ecc)
+        else
+            do k = 11, 1 , -1
+                if (MA .gt. bounds(k)) then
+                    exit
+                end if
+            end do
+            EA_tab(0) = k * pi / 12.d0
+            EA_tab(6) = (k + 1.d0) * pi / 12.d0
+            if (k .ge. 6) then
+                sig = 1
+            else
+                sig = -1
+            end if
+            
+            x = 1.d0 / (1.d0 - ((6.d0 - k) * pi / 12.d0 * sig * bounds(abs(6 - k))))
+            y = -0.5 * (k * pi / 12.d0 - bounds(k))
+            EA_tab(1) = x
+            EA_tab(2) = y * x * x * x
+            
+            x = 1.d0 / (1.d0 - ((6.d0 - k) * pi / 12.d0 + sig * bounds(abs(7 - k))))
+            y = -0.5 * ((k + 1) * pi / 12.d0 - bounds(k + 1))
+            EA_tab(7) = x
+            EA_tab(8) = y * x * x * x
+            
+            idx = 1.d0 / (bounds(k + 1) - bounds(k))
+            
+            B0 = idx * (-EA_tab(2) - idx * (EA_tab(1) - idx * pi / 12.d0))
+            B1 = idx * (-2 * EA_tab(2) - idx * (EA_tab(1) - EA_tab(7)))
+            B2 = idx * (EA_tab(8) - EA_tab(2))
+            
+            EA_tab(3) = B2 - 4 * B1 + 10 * B0
+            EA_tab(4) = (-2 * B2 + 7 * B1 - 15 * B0) * idx
+            EA_tab(5) = (B2 - 3 * B1 + 6 * B0) * idx * idx
+            
+            dx = MA - bounds(k)
+            EA = EA_tab(0) &
+                 + dx * (EA_tab(1) + dx * (EA_tab(2) + dx * (EA_tab(3) + dx * (EA_tab(4) + dx * EA_tab(5)))))
+                 
+            if (EA .lt. pi / 4.d0) then
+                sE = Sin(EA)
+                cE = Cos(EA)
+            else if (EA .gt. 3 * pi / 4.d0) then 
+                sE = Sin(pi - EA)
+                cE = - Sqrt(1.d0 - sE * sE)
+            else
+                cE = Sin(pi / 2.d0 - EA)
+                sE = Sqrt(1.d0 - cE * cE)
+            end if
+            
+            num = (MA - EA) * one_over_ecc + sE
+            denom = one_over_ecc - cE
+            dEA = num * denom / (denom * denom + 0.5 * sE * num)
+            
+            if ((ecc .lt. 0.78d0) .OR. (MA .gt. 0.4d0)) then 
+                sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE)
+                cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE
+            else
+                dEA = num / (denom + dEA * (0.5 * sE + (1.d0 / 6.d0) * cE * dEA))
+                sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE * (1.d0 - dEA * dEA * 1.d0 / 6.d0))
+                cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE * (1.d0 - dEA * dEA * 1.d0 / 6.d0)
+            end if
+        end if
+    end do
+    
+    x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
+    tanfhalf = x * sinf / (1.d0 + cosf)
+    tanfhalf2 = tanfhalf * tanfhalf
+    d = 1.d0 / (tanfhalf2 + 1.d0)
+    cosf = (1.d0 - tanfhalf2) * d
+    sinf = 2 * tanfhalf * d
+    
 end
 
 subroutine grad_kepler_solve(M, ecc, cosf, sinf, f_e, f_M, j) bind(C, name="grad_kepler_solve")
@@ -101,7 +245,7 @@ subroutine coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     
     integer (c_int), bind(C) :: j
     real*8 :: np, nm
-    real*8 :: mrp, mrm, mtot, comegam, somegam
+    real*8 :: mrp, mrm, comegam, somegam
     real*8 :: cwp, swp, cip, cwm, swm, cim
     real*8, dimension(j) :: x, y, z, xbc, ybc, zbc
     real*8, dimension(j) :: r, cosf, sinf, cosfw, sinfw
@@ -126,7 +270,7 @@ subroutine coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     mrp = - 1.d0 / (1.d0 + mm)
     mrm = - mm * mrp
     
-    call kepler_solve(np * (t - t0p), ep, cosf, sinf, j)
+    call kepler_solve_RPP(np * (t - t0p), ep, cosf, sinf, j)
     
     r = ap * (1.d0 - ep * ep) / (1.d0 + ep * cosf)
     cosfw = cwp * cosf - swp * sinf
@@ -135,7 +279,7 @@ subroutine coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     ybc = -r * sinfw * cip
     zbc = r * sinfw * Sin(ip)
     
-    call kepler_solve(nm * (t - t0m), em, cosf, sinf, j)
+    call kepler_solve_RPP(nm * (t - t0m), em, cosf, sinf, j)
     
     r = am * (1.d0 - em * em) / (1.d0 + em * cosf)
     cosfw = cwm * cosf - swm * sinf
@@ -174,8 +318,7 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     
     real*8 :: np_Pp, nm_Pm
     real*8 :: np_ms, np_mp, np_mm, nm_mp, nm_mm
-    real*8 :: ap_m, am_m, am_Pm, ap_Pp, am_nm, ap_np
-    real*8 :: mtot, omtot2, mrp_mm, mrp_mp, mrm_mp, mrm_mm, mr
+    real*8 :: mrp_mm, mrm_mm
     real*8, dimension(j) :: r_t0, r_e, r_cosf
     real*8, dimension(j) :: f_M, f_e
     real*8, dimension(j) :: ccmss, cspsc, scpcs, ssmcc
@@ -237,7 +380,7 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     dxp(5, :) = r * cspsc
     dxm(5, :) = dxp(5, :)
     dxp(6, :) = 0.d0
-    dxm(6, :) = dxp(6, :)
+    dxm(6, :) = 0.d0
         
     ! ms
     dyp(1, :) = ybc_a
