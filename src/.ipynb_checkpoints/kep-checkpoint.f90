@@ -1,10 +1,13 @@
-module kepler_new
+module kepler
 use iso_c_binding
 implicit none
 
 real*8, parameter :: pi = 4.d0 * Atan(1.d0), G = 8.887692445125634d-10
-real*8, parameter :: o3 = 1.d0 / 3.d0
+real*8, parameter :: o3 = 1.d0 / 3.d0, o6 = 1.d0 / 6.d0, pi_o12 = Atan(1.d0) / 3.d0
 real*8, parameter :: au_rsun = 215.03215567054764
+real*8, parameter :: if3 = 1.d0 / 6.d0, if5 = 1.d0 / (6.d0 * 20), if7 = 1.d0 / (6.d0 * 20 * 42)
+real*8, parameter :: if9 = 1.d0 / (6.d0 * 20 * 42 * 72), if11 = 1.d0 / (6.d0 * 20 * 42 * 72 * 110)
+real*8, parameter :: if13 = 1.d0 / (6.d0 * 20 * 42 * 72 * 110 * 156), if15 = 1.d0 / (6.d0 * 20 * 42 * 72 * 110 * 156 * 210)
 
 contains
 
@@ -32,7 +35,7 @@ subroutine kepler_solve(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve")
         x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
         
         do i=1,j,1
-            err = 10.d0
+            err = 1.d0
             do while (abs(err) .gt. tol)
                 err = - (E(i) - ecc * Sin(E(i)) - M(i)) / (1.d0 - ecc * Cos(E(i)))
                 E(i) = E(i) + err
@@ -46,6 +49,166 @@ subroutine kepler_solve(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve")
         cosf = (1.d0 - tanfhalf2) * denom
         sinf = 2 * tanfhalf * denom
     end if
+end
+
+function sine(x)
+
+    real*8 :: sine
+    real*8 :: x, x2
+    
+    x2 = x * x
+    
+    sine = x * (1.d0 - x2 * (if3 - &
+                    x2 * (if5 - x2 * (if7 - x2 * (if9 - x2 * (if11 - x2 * (if13 - x2 * if15)))))))
+
+end 
+
+! copied from DFM's exoplanet code
+function EAstart(M, ecc)
+
+    real*8 :: EAstart
+    real*8 :: M, ecc
+    real*8 :: ome, sqrt_ome, chi, Lam, S, sigma, s2, s4, denom, E
+    
+    ome = 1.d0 - ecc
+    sqrt_ome = Sqrt(ome)
+    chi = M / (sqrt_ome * ome)
+    Lam = Sqrt(8.d0 + 9 * chi * chi)
+    S = (Lam + 3 * chi) ** (1.d0 / 3.d0)
+    sigma = 6 * chi / (2.d0 + S * S + 4.d0 / (S * S))
+    s2 = sigma * sigma
+    s4 = s2 * s2
+    
+    denom = 1.d0 / (s2 + 2.d0)
+    E = sigma * (1.d0 + s2 * ome * denom * ((s2 + 20.d0) / 60.d0 &
+        + s2 * ome * denom * denom * (s2 * s4 + 25 * s4 + 340 * s2 + 840) / 1400))
+    EAstart = E * sqrt_ome
+end
+
+! pretty much verbatim from DFM's exoplanet code 
+subroutine kepler_solve_RPP(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve_RPP")
+
+    integer, bind(C) :: j
+    integer :: i, k
+    real*8, bind(C) :: ecc
+    real*8, dimension(j), bind(C) :: M, cosf, sinf 
+    real*8, dimension(j) :: tanfhalf, tanfhalf2, d
+    real*8 :: g2s_e, g3s_e, g4s_e, g5s_e, g6s_e
+    real*8, dimension(0:12) :: bounds
+    real*8, dimension(0:8) :: EA_tab
+    real*8 :: MA, EA, sE, cE, x, y
+    real*8 :: B0, B1, B2, dx, idx
+    integer :: MAsign, sig
+    real*8 :: over_ecc
+    real*8 :: num, denom, dEA
+    
+    g2s_e = 0.2588190451025207623489 * ecc
+    g3s_e = 0.5 * ecc
+    g4s_e = 0.7071067811865475244008 * ecc
+    g5s_e = 0.8660254037844386467637 * ecc
+    g6s_e = 0.9659258262890682867497 * ecc
+    
+    bounds(0) = 0.d0
+    bounds(1) = pi_o12 - g2s_e
+    bounds(2) = pi * o6 - g3s_e
+    bounds(3) = pi * 0.25 - g4s_e
+    bounds(4) = pi * o3 - g5s_e
+    bounds(5) = 5 * pi_o12 - g6s_e
+    bounds(6) = pi * 0.5 - ecc
+    bounds(7) = 7 * pi_o12 - g6s_e
+    bounds(8) = 2 * pi * o3 - g5s_e
+    bounds(9) = 3 * pi * 0.25 - g4s_e
+    bounds(10) = 5 * pi * o6 - g3s_e
+    bounds(11) = 11 * pi_o12 - g2s_e
+    bounds(12) = pi
+    
+    over_ecc = 1.d17
+    if (ecc .gt. 1.d-17) then
+        over_ecc = 1.d0 / ecc
+    end if 
+    
+    do i=1,j,1
+        MAsign = 1
+        MA = Modulo(M(i), 2 * pi)
+        if (MA .gt. pi) then 
+            MAsign = -1
+            MA = 2 * pi - MA
+        end if
+    
+        if (2 * MA + 1.d0 - ecc .lt. 0.2d0) then 
+            EA = EAstart(MA, ecc)
+        else
+            do k = 11, 1 , -1
+                if (MA .gt. bounds(k)) then
+                    exit
+                end if
+            end do
+            EA_tab(0) = k * pi_o12
+            EA_tab(6) = (k + 1.d0) * pi_o12
+            if (k .ge. 6) then
+                sig = 1
+            else
+                sig = -1
+            end if
+            
+            x = 1.d0 / (1.d0 - ((6.d0 - k) * pi_o12 + sig * bounds(abs(6 - k))))
+            y = -0.5 * (k * pi_o12 - bounds(k))
+            EA_tab(1) = x
+            EA_tab(2) = y * x * x * x
+            
+            x = 1.d0 / (1.d0 - ((5.d0 - k) * pi_o12 + sig * bounds(abs(5 - k))))
+            y = -0.5 * ((k + 1.d0) * pi_o12 - bounds(k + 1))
+            EA_tab(7) = x
+            EA_tab(8) = y * x * x * x
+            
+            idx = 1.d0 / (bounds(k + 1) - bounds(k))
+            
+            B0 = idx * (-EA_tab(2) - idx * (EA_tab(1) - idx * pi_o12))
+            B1 = idx * (-2 * EA_tab(2) - idx * (EA_tab(1) - EA_tab(7)))
+            B2 = idx * (EA_tab(8) - EA_tab(2))
+            
+            EA_tab(3) = B2 - 4 * B1 + 10 * B0
+            EA_tab(4) = (-2 * B2 + 7 * B1 - 15 * B0) * idx
+            EA_tab(5) = (B2 - 3 * B1 + 6 * B0) * idx * idx
+            
+            dx = MA - bounds(k)
+            EA = EA_tab(0) &
+                 + dx * (EA_tab(1) + dx * (EA_tab(2) + dx * (EA_tab(3) + dx * (EA_tab(4) + dx * EA_tab(5)))))
+                 
+        end if
+                 
+        if (EA .lt. pi * 0.25) then
+            sE = sine(EA)
+            cE = Sqrt(1.d0 - sE * sE)
+        else if (EA .gt. 3 * pi * 0.25) then 
+            sE = sine(pi - EA)
+            cE = - Sqrt(1.d0 - sE * sE)
+        else
+            cE = sine(pi * 0.5 - EA)
+            sE = Sqrt(1.d0 - cE * cE)
+        end if
+            
+        num = (MA - EA) * over_ecc + sE
+        denom = over_ecc - cE
+        dEA = num * denom / (denom * denom + 0.5 * sE * num)
+            
+        if ((ecc .lt. 0.78d0) .OR. (MA .gt. 0.4d0)) then 
+            sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE)
+            cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE
+        else
+            dEA = num / (denom + dEA * (0.5 * sE + o6 * cE * dEA))
+            sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE * (1.d0 - dEA * dEA * o6))
+            cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE * (1.d0 - dEA * dEA * o6)
+        end if
+    end do
+    
+    x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
+    tanfhalf = x * sinf / (1.d0 + cosf)
+    tanfhalf2 = tanfhalf * tanfhalf
+    d = 1.d0 / (tanfhalf2 + 1.d0)
+    cosf = (1.d0 - tanfhalf2) * d
+    sinf = 2 * tanfhalf * d
+    
 end
 
 subroutine grad_kepler_solve(M, ecc, cosf, sinf, f_e, f_M, j) bind(C, name="grad_kepler_solve")
@@ -95,29 +258,152 @@ subroutine grad_kepler_solve(M, ecc, cosf, sinf, f_e, f_M, j) bind(C, name="grad
     end if
 end
 
-subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+! pretty much verbatim from DFM's exoplanet code 
+subroutine grad_kepler_solve_RPP(M, ecc, cosf, sinf, f_e, f_M, j)
+
+    integer :: j, i, k
+    real*8 :: ecc
+    real*8, dimension(j) :: M, cosf, sinf, tanfhalf, tanfhalf2, d
+    real*8, dimension(j) :: f_e, f_M
+    real*8 g2s_e, g3s_e, g4s_e, g5s_e, g6s_e
+    real*8, dimension(0:12) :: bounds
+    real*8, dimension(0:8) :: EA_tab
+    real*8 :: MA, EA, sE, cE, x, y
+    real*8 :: B0, B1, B2, dx, idx
+    integer :: MAsign, sig
+    real*8 :: over_ecc
+    real*8 :: num, denom, dEA
+    
+    g2s_e = 0.2588190451025207623489 * ecc
+    g3s_e = 0.5 * ecc
+    g4s_e = 0.7071067811865475244008 * ecc
+    g5s_e = 0.8660254037844386467637 * ecc
+    g6s_e = 0.9659258262890682867497 * ecc
+    
+    bounds(0) = 0.d0
+    bounds(1) = pi_o12 - g2s_e
+    bounds(2) = pi * o6 - g3s_e
+    bounds(3) = pi * 0.25 - g4s_e
+    bounds(4) = pi * o3 - g5s_e
+    bounds(5) = 5 * pi_o12 - g6s_e
+    bounds(6) = pi * 0.5 - ecc
+    bounds(7) = 7 * pi_o12 - g6s_e
+    bounds(8) = 2 * pi * o3 - g5s_e
+    bounds(9) = 3 * pi * 0.25 - g4s_e
+    bounds(10) = 5 * pi * o6 - g3s_e
+    bounds(11) = 11 * pi_o12 - g2s_e
+    bounds(12) = pi
+    
+    over_ecc = 1.d17
+    if (ecc .gt. 1.d-17) then
+        over_ecc = 1.d0 / ecc
+    end if 
+    
+    do i=1,j,1
+        MAsign = 1
+        MA = Modulo(M(i), 2 * pi)
+        if (MA .gt. pi) then 
+            MAsign = -1
+            MA = 2 * pi - MA
+        end if
+    
+        if (2 * MA + 1.d0 - ecc .lt. 0.2d0) then 
+            EA = EAstart(MA, ecc)
+        else
+            do k = 11, 1 , -1
+                if (MA .gt. bounds(k)) then
+                    exit
+                end if
+            end do
+            EA_tab(0) = k * pi_o12
+            EA_tab(6) = (k + 1.d0) * pi_o12
+            if (k .ge. 6) then
+                sig = 1
+            else
+                sig = -1
+            end if
+            
+            x = 1.d0 / (1.d0 - ((6.d0 - k) * pi_o12 + sig * bounds(abs(6 - k))))
+            y = -0.5 * (k * pi_o12 - bounds(k))
+            EA_tab(1) = x
+            EA_tab(2) = y * x * x * x
+            
+            x = 1.d0 / (1.d0 - ((5.d0 - k) * pi_o12 + sig * bounds(abs(5 - k))))
+            y = -0.5 * ((k + 1.d0) * pi_o12 - bounds(k + 1))
+            EA_tab(7) = x
+            EA_tab(8) = y * x * x * x
+            
+            idx = 1.d0 / (bounds(k + 1) - bounds(k))
+            
+            B0 = idx * (-EA_tab(2) - idx * (EA_tab(1) - idx * pi_o12))
+            B1 = idx * (-2 * EA_tab(2) - idx * (EA_tab(1) - EA_tab(7)))
+            B2 = idx * (EA_tab(8) - EA_tab(2))
+            
+            EA_tab(3) = B2 - 4 * B1 + 10 * B0
+            EA_tab(4) = (-2 * B2 + 7 * B1 - 15 * B0) * idx
+            EA_tab(5) = (B2 - 3 * B1 + 6 * B0) * idx * idx
+            
+            dx = MA - bounds(k)
+            EA = EA_tab(0) &
+                 + dx * (EA_tab(1) + dx * (EA_tab(2) + dx * (EA_tab(3) + dx * (EA_tab(4) + dx * EA_tab(5)))))
+                 
+        end if
+                 
+        if (EA .lt. pi * 0.25) then
+            sE = sine(EA)
+            cE = Sqrt(1.d0 - sE * sE)
+        else if (EA .gt. 3 * pi * 0.25) then 
+            sE = sine(pi - EA)
+            cE = - Sqrt(1.d0 - sE * sE)
+        else
+            cE = sine(pi * 0.5 - EA)
+            sE = Sqrt(1.d0 - cE * cE)
+        end if
+            
+        num = (MA - EA) * over_ecc + sE
+        denom = over_ecc - cE
+        dEA = num * denom / (denom * denom + 0.5 * sE * num)
+            
+        if ((ecc .lt. 0.78d0) .OR. (MA .gt. 0.4d0)) then 
+            sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE)
+            cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE
+        else
+            dEA = num / (denom + dEA * (0.5 * sE + o6 * cE * dEA))
+            sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE * (1.d0 - dEA * dEA * o6))
+            cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE * (1.d0 - dEA * dEA * o6)
+        end if
+    end do
+    
+    x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
+    tanfhalf = x * sinf / (1.d0 + cosf)
+    tanfhalf2 = tanfhalf * tanfhalf
+    d = 1.d0 / (tanfhalf2 + 1.d0)
+    cosf = (1.d0 - tanfhalf2) * d
+    sinf = 2 * tanfhalf * d
+    
+    x = 1.d0 - ecc**2.d0
+    f_M = (1.d0 + ecc * cosf)**2.d0 / x**1.5d0
+    f_e = (2.d0 + ecc * cosf) * sinf / x
+end
+
+subroutine coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, &
     &xp, yp, zp, xm, ym, zm) bind(C, name="coords")
     
     integer (c_int), bind(C) :: j
-    real*8 :: np, nm, ap, am
-    real*8 :: mrp, mrm, mtot, comegap, somegap, comegam, somegam
+    real*8 :: np, nm
+    real*8 :: mrp, mrm, comegam, somegam
     real*8 :: cwp, swp, cip, cwm, swm, cim
     real*8, dimension(j) :: x, y, z, xbc, ybc, zbc
     real*8, dimension(j) :: r, cosf, sinf, cosfw, sinfw
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), dimension(j), intent(out) :: xp, yp, zp, xm, ym, zm
             
     np = 2 * pi / Pp    
     nm = 2 * pi / Pm
-    
-    ap = (G * (ms + mp + mm) / (np ** 2.d0)) ** o3
-    am = (G * (mp + mm) / (nm ** 2.d0)) ** o3
-    
-    comegap = Cos(Op)
-    somegap = Sin(Op)
+
     cwp = Cos(wp)
     swp = Sin(wp)
     cip = Cos(ip)
@@ -128,20 +414,19 @@ subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     swm = Sin(wm)
     cim = Cos(im)
 
-    mtot = mp + mm
-    mrp = -mm / mtot
-    mrm = mp / mtot
+    mrp = - 1.d0 / (1.d0 + mm)
+    mrm = - mm * mrp
     
-    call kepler_solve(np * (t - t0p), ep, cosf, sinf, j)
+    call kepler_solve_RPP(np * (t - t0p), ep, cosf, sinf, j)
     
     r = ap * (1.d0 - ep * ep) / (1.d0 + ep * cosf)
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
-    xbc = -r * (comegap * cosfw - somegap * sinfw * cip)
-    ybc = -r * (somegap * cosfw + comegap * sinfw * cip)
+    xbc = -r * cosfw
+    ybc = -r * sinfw * cip
     zbc = r * sinfw * Sin(ip)
     
-    call kepler_solve(nm * (t - t0m), em, cosf, sinf, j)
+    call kepler_solve_RPP(nm * (t - t0m), em, cosf, sinf, j)
     
     r = am * (1.d0 - em * em) / (1.d0 + em * cosf)
     cosfw = cwm * cosf - swm * sinf
@@ -160,28 +445,27 @@ subroutine coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     
 end
 
-subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, &
     &xp, yp, xm, ym, dxp, dyp, dxm, dym) bind(C, name="grad_coords")
 
     integer (c_int), bind(C) :: j
-    real*8 :: np, nm, ap, am
-    real*8 :: mrp, mrm, comegap, somegap, comegam, somegam
+    real*8 :: np, nm
+    real*8 :: mrp, mrm, comegam, somegam
     real*8 :: cwp, swp, cip, cwm, swm, cim, sip, sim
     real*8, dimension(j) :: x, y, xbc, ybc
     real*8, dimension(j) :: r, cosf, sinf, cosfw, sinfw, denom
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), dimension(j), intent(out) :: xp, yp, xm, ym
     
-    real (c_double), bind(C), dimension(15, j), intent(out) :: dxp, dyp, dxm, dym
-    real*8, dimension(j) :: xbc_m, ybc_m, x_m, y_m
+    real (c_double), bind(C), dimension(j, 14), intent(out) :: dxp, dyp, dxm, dym
+    real*8, dimension(j) :: xbc_a, ybc_a, x_a, y_a
     
     real*8 :: np_Pp, nm_Pm
     real*8 :: np_ms, np_mp, np_mm, nm_mp, nm_mm
-    real*8 :: ap_m, am_m, am_Pm, ap_Pp, am_nm, ap_np
-    real*8 :: mtot, omtot2, mrp_mm, mrp_mp, mrm_mp, mrm_mm, mr
+    real*8 :: mrp_mm, mrm_mm
     real*8, dimension(j) :: r_t0, r_e, r_cosf
     real*8, dimension(j) :: f_M, f_e
     real*8, dimension(j) :: ccmss, cspsc, scpcs, ssmcc
@@ -193,18 +477,6 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     nm = 2 * pi / Pm
     nm_Pm = -nm / Pm
     
-    ap = (G * (ms + mp + mm) / (np ** 2.d0)) ** o3
-    ap_m = G / (3 * (ap * np) ** 2.d0)
-    ap_np = - 2 * ap / (3 * np)
-    ap_Pp = ap_np * np_Pp
-
-    am = (G * (mp + mm) / (nm ** 2.d0)) ** o3
-    am_m = G / (3 * (am * nm) ** 2.d0)
-    am_nm = - 2 * am / (3 * nm)
-    am_Pm = am_nm * nm_Pm
-    
-    comegap = Cos(Op)
-    somegap = Sin(Op)
     cwp = Cos(wp)
     swp = Sin(wp)
     cip = Cos(ip)
@@ -217,19 +489,13 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     cim = Cos(im)
     sim = Sin(im)
 
-    mtot = mp + mm
-    omtot2 = 1.d0 / (mtot * mtot)
+    mrp = - 1.d0 / (1.d0 + mm)
+    mrm = - mm * mrp
     
-    mrp = -mm / mtot
-    mrm = mp / mtot
-    
-    mrp_mm = -mp * omtot2
-    mrp_mp = mm * omtot2
+    mrp_mm = - mrp / (1.d0 + mm)
     mrm_mm = mrp_mm
-    mrm_mp = mrp_mp
-    mr = mp / mm
     
-    call grad_kepler_solve(np * (t - t0p), ep, cosf, sinf, f_e, f_M, j)
+    call grad_kepler_solve_RPP(np * (t - t0p), ep, cosf, sinf, f_e, f_M, j)
     
     denom = 1.d0 / (1.d0 + ep * cosf)
     r = ap * (1.d0 - ep * ep) * denom
@@ -241,53 +507,48 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
     
-    ccmss = comegap * cosfw - somegap * sinfw * cip
-    cspsc = comegap * sinfw + somegap * cosfw * cip
-    scpcs = somegap * cosfw + comegap * sinfw * cip
-    ssmcc = somegap * sinfw - comegap * cosfw * cip
+    ccmss = cosfw
+    cspsc = sinfw
+    scpcs = sinfw * cip
+    ssmcc = - cosfw * cip
     xbc = -r * ccmss
-    xbc_m = - r * ap_m * ccmss / ap
+    xbc_a = - r * ccmss / ap
     ybc = -r * scpcs
-    ybc_m = - r * ap_m * scpcs / ap
+    ybc_a = - r * scpcs / ap
     
-    dxp(1, :) = xbc_m
-    dxm(1, :) = xbc_m
-    dxp(2, :) = - r_t0 * ccmss - r * f_M * np * cspsc
-    dxm(2, :) = dxp(2, :)
-    dxp(3, :) = - r_e * ccmss + r * f_e * cspsc
-    dxm(3, :) = dxp(3, :)
-    dxp(4, :) = - r_Pp * ccmss + r * f_M * (t - t0p) * np_Pp * cspsc
-    dxm(4, :) = dxp(4, :)
-    dxp(6, :) = r * scpcs
-    dxm(6, :) = dxp(6, :)
-    dxp(5, :) = r * cspsc
-    dxm(5, :) = dxp(5, :)
-    dxp(7, :) = - r * somegap * sinfw * sip
-    dxm(7, :) = dxp(7, :)
+    dxp(:, 1) = xbc_a
+    dxm(:, 1) = xbc_a
+    dxp(:, 2) = - r_t0 * ccmss - r * f_M * np * cspsc
+    dxm(:, 2) = dxp(:, 2)
+    dxp(:, 3) = - r_e * ccmss + r * f_e * cspsc
+    dxm(:, 3) = dxp(:, 3)
+    dxp(:, 4) = - r_Pp * ccmss + r * f_M * (t - t0p) * np_Pp * cspsc
+    dxm(:, 4) = dxp(:, 4)
+    dxp(:, 5) = r * cspsc
+    dxm(:, 5) = dxp(:, 5)
+    dxp(:, 6) = 0.d0
+    dxm(:, 6) = 0.d0
         
     ! ms
-    dyp(1, :) = ybc_m
-    dym(1, :) = ybc_m
+    dyp(:, 1) = ybc_a
+    dym(:, 1) = ybc_a
     ! t0p
-    dyp(2, :) = - r_t0 * scpcs - r * f_M * np * ssmcc
-    dym(2, :) = dyp(2, :)
+    dyp(:, 2) = - r_t0 * scpcs - r * f_M * np * ssmcc
+    dym(:, 2) = dyp(:, 2)
     ! ep
-    dyp(3, :) = - r_e * scpcs + r * f_e * ssmcc
-    dym(3, :) = dyp(3, :)
+    dyp(:, 3) = - r_e * scpcs + r * f_e * ssmcc
+    dym(:, 3) = dyp(:, 3)
     ! Pp
-    dyp(4, :) = - r_Pp * scpcs + r * f_M * (t - t0p) * np_Pp * ssmcc
-    dym(4, :) = dyp(4, :)
-    ! Op
-    dyp(6, :) = - r * ccmss
-    dym(6, :) = dyp(6, :)
+    dyp(:, 4) = - r_Pp * scpcs + r * f_M * (t - t0p) * np_Pp * ssmcc
+    dym(:, 4) = dyp(:, 4)
     ! wp
-    dyp(5, :) = r * ssmcc
-    dym(5, :) = dyp(5, :)
+    dyp(:, 5) = r * ssmcc
+    dym(:, 5) = dyp(:, 5)
     ! ip
-    dyp(7, :) = r * comegap * sinfw * sip
-    dym(7, :) = dyp(7, :)
+    dyp(:, 6) = r * sinfw * sip
+    dym(:, 6) = dyp(:, 6)
     
-    call grad_kepler_solve(nm * (t - t0m), em, cosf, sinf, f_e, f_M, j)
+    call grad_kepler_solve_RPP(nm * (t - t0m), em, cosf, sinf, f_e, f_M, j)
     
     denom = 1.d0 / (1.d0 + em * cosf)
     r = am * (1.d0 - em * em) * denom
@@ -304,57 +565,57 @@ subroutine grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     scpcs = somegam * cosfw + comegam * sinfw * cim
     ssmcc = somegam * sinfw - comegam * cosfw * cim
     x = -r * ccmss
-    x_m = - r * am_m * ccmss / am
+    x_a = -r * ccmss / am
     y = -r * scpcs
-    y_m = - r * am_m * scpcs / am
+    y_a = -r * scpcs / am
         
     ! ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, Pm, wm, Om, im, mm
     xp = xbc + x * mrp
-    dxp(8, :) = xbc_m + x * mrp_mp + x_m * mrp
-    dxp(9, :) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrp
-    dxp(10, :) = (- r_e * ccmss + r * f_e * cspsc) * mrp
-    dxp(11, :) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
-    dxp(13, :) = r * cspsc * mrp
-    dxp(12, :) = r * scpcs * mrp
-    dxp(14, :) = -r * somegam * sinfw * sim * mrp
-    dxp(15, :) = xbc_m + x_m * mrp + x * mrp_mm
+    dxp(:, 7) = x_a * mrp
+    dxp(:, 8) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrp
+    dxp(:, 9) = (- r_e * ccmss + r * f_e * cspsc) * mrp
+    dxp(:, 10) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
+    dxp(:, 11) = r * cspsc * mrp
+    dxp(:, 12) = r * scpcs * mrp
+    dxp(:, 13) = -r * somegam * sinfw * sim * mrp
+    dxp(:, 14) = x * mrp_mm
     
     yp = ybc + y * mrp
 
-    dyp(8, :) = ybc_m + y * mrp_mp + y_m * mrp
-    dyp(9, :) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrp
-    dyp(10, :) = (- r_e * scpcs + r * f_e * ssmcc) * mrp
-    dyp(11, :) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
-    dyp(13, :) = r * ssmcc * mrp
-    dyp(12, :) = - r * ccmss * mrp
-    dyp(14, :) = r * comegam * sinfw * sim * mrp
-    dyp(15, :) = ybc_m + y_m * mrp + y * mrp_mm
+    dyp(:, 7) = y_a * mrp
+    dyp(:, 8) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrp
+    dyp(:, 9) = (- r_e * scpcs + r * f_e * ssmcc) * mrp
+    dyp(:, 10) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
+    dyp(:, 11) = r * ssmcc * mrp
+    dyp(:, 12) = - r * ccmss * mrp
+    dyp(:, 13) = r * comegam * sinfw * sim * mrp
+    dyp(:, 14) = y * mrp_mm
 
     xm = xbc + x * mrm
 
-    dxm(8, :) = xbc_m + x * mrm_mp + x_m * mrm
-    dxm(9, :) = -dxp(9, :) * mr
-    dxm(10, :) = -dxp(10, :) * mr
-    dxm(11, :) = -dxp(11, :) * mr
-    dxm(13, :) = -dxp(13, :) * mr
-    dxm(12, :) = -dxp(12, :) * mr
-    dxm(14, :) = -dxp(14, :) * mr
-    dxm(15, :) = xbc_m + x * mrm_mm + x_m * mrm
+    dxm(:, 7) = x_a * mrm
+    dxm(:, 8) = -dxp(:, 8) * mm
+    dxm(:, 9) = -dxp(:, 9) * mm
+    dxm(:, 10) = -dxp(:, 10) * mm
+    dxm(:, 11) = -dxp(:, 11) * mm
+    dxm(:, 12) = -dxp(:, 12) * mm
+    dxm(:, 13) = -dxp(:, 13) * mm
+    dxm(:, 14) = x * mrm_mm
     
     ym = ybc + y * mrm
 
-    dym(8, :) = ybc_m + y * mrm_mp + y_m * mrm
-    dym(9, :) = -dyp(9, :) * mr
-    dym(10, :) = -dyp(10, :) * mr
-    dym(11, :) = -dyp(11, :) * mr
-    dym(13, :) = -dyp(13, :) * mr
-    dym(12, :) = -dyp(12, :) * mr
-    dym(14, :) = -dyp(14, :) * mr
-    dyp(15, :) = ybc_m + y * mrm_mm + y_m * mrm
+    dym(:, 7) = y_a * mrm
+    dym(:, 8) = -dyp(:, 8) * mm
+    dym(:, 9) = -dyp(:, 9) * mm
+    dym(:, 10) = -dyp(:, 10) * mm
+    dym(:, 11) = -dyp(:, 11) * mm
+    dym(:, 12) = -dyp(:, 12) * mm
+    dym(:, 13) = -dyp(:, 13) * mm
+    dym(:, 14) = y * mrm_mm
     
 end
 
-subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine grad_impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, &
     &bp, bpm, theta, dbp, dbpm, dtheta) bind(C, name="grad_impacts")
 
@@ -363,20 +624,19 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     real*8, dimension(j) :: bm, bm2, bp2, bpm2, sth
     real*8, dimension(j) :: xp, yp, xm, ym
     real*8, dimension(j) :: bm_xm, bm_ym, bp_xp, bp_yp, bpm_xm, bpm_ym, bpm_xp, bpm_yp
-    real*8, dimension(j) :: theta_bp, theta_bpm, theta_bm
-    real*8, dimension(15, j) :: dxp, dyp, dxm, dym, dbm
+    real*8, dimension(j) :: theta_bp, theta_bpm, theta_bm, denom
+    real*8, dimension(j, 14) :: dxp, dyp, dxm, dym, dbm
     integer (c_int), bind(C) :: j
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), intent(out), dimension(j) :: bp, bpm, theta
-    real (c_double), bind(C), intent(out), dimension(15, j) :: dbp, dbpm, dtheta
+    real (c_double), bind(C), intent(out), dimension(j, 14) :: dbp, dbpm, dtheta
     
-    call grad_coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, &
+    call grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, t0m, em, &
                 Pm, wm, Om, im, mm, j, xp, yp, xm, ym, &
                 dxp, dyp, dxm, dym)
-    
-    ! ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, Pm, wm, Om, im, mm
+        
     bm2 = xm**2.d0 + ym**2.d0
     bm = Sqrt(bm2)
     bm_xm = xm / bm
@@ -415,18 +675,19 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     end do
     
     sth = Sin(theta)
-    theta_bm = bm / (bp * bpm * sth)
-    theta_bp = ((bpm - bm) * (bpm + bm) - bp2) / (2 * bp2 * bpm * sth)
-    theta_bpm = ((bp - bm) * (bp + bm) - bpm2) / (2 * bpm2 * bp * sth)
+    denom = 1.d0 / (bp2 * bpm2 * sth)
+    theta_bm = bm * bp * bpm * denom
+    theta_bp = ((bpm - bm) * (bpm + bm) - bp2) * 0.5 * bpm * denom
+    theta_bpm = ((bp - bm) * (bp + bm) - bpm2) * 0.5 * bp * denom
     
-    do i=1,15,1
-        dbm(i, :) = bm_xm * dxm(i, :) + bm_ym * dym(i, :)
-        dbp(i, :) = bp_xp * dxp(i, :) + bp_yp * dyp(i, :)
-        dbpm(i, :) = bpm_xm * dxm(i, :) + bpm_ym * dym(i, :) &
-                   + bpm_xp * dxp(i, :) + bpm_yp * dyp(i, :)
-        dtheta(i, :) = theta_bm * dbm(i, :) &
-                     + theta_bp * dbp(i, :) &
-                     + theta_bpm * dbpm(i, :)
+    do i=1,14,1
+        dbm(:, i) = bm_xm * dxm(:, i) + bm_ym * dym(:, i)
+        dbp(:, i) = bp_xp * dxp(:, i) + bp_yp * dyp(:, i)
+        dbpm(:, i) = bpm_xm * dxm(:, i) + bpm_ym * dym(:, i) &
+                   + bpm_xp * dxp(:, i) + bpm_yp * dyp(:, i)
+        dtheta(:, i) = theta_bm * dbm(:, i) &
+                     + theta_bp * dbp(:, i) &
+                     + theta_bpm * dbpm(:, i)
     end do
 
     bp = bp * au_rsun
@@ -436,7 +697,7 @@ subroutine grad_impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
             
 end
 
-subroutine impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
+subroutine impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
     &t0m, em, Pm, Om, wm, im, mm, j, bp, bpm, theta) bind(C, name="impacts")
 
     integer :: i
@@ -444,12 +705,12 @@ subroutine impacts(t, ms, t0p, ep, Pp, Op, wp, ip, mp, &
     real*8, dimension(j) :: bm, bm2, bp2, bpm2
     real*8, dimension(j) :: xp, yp, xm, ym, zp, zm
     integer (c_int), bind(C) :: j
-    real (c_double), bind(C) :: ms, t0p, ep, Pp, Op, wp, ip, mp 
+    real (c_double), bind(C) :: ap, t0p, ep, Pp, wp, ip, am 
     real (c_double), bind(C) :: t0m, em, Pm, Om, wm, im, mm
     real (c_double), bind(C), dimension(j) :: t
     real (c_double), bind(C), intent(out), dimension(j) :: bp, bpm, theta
     
-    call coords(t, ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, &
+    call coords(t, ap, t0p, ep, Pp, wp, ip, am, t0m, em, &
                 Pm, wm, Om, im, mm, j, xp, yp, zp, xm, ym, zm)
     
     bm2 = xm**2.d0 + ym**2.d0
