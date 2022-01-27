@@ -14,11 +14,9 @@ def validate_elements(argdict):
         idm = {v: i for i, v in enumerate(__args__)}
         args = tuple(dict(sorted(argdict.items(), 
                                  key=lambda p: idm[p[0]])).values())
-        
         return args
         
     else:
-        
         raise ValueError("required parameters are: ", __args__)
 
 def impacts(t, argdict):
@@ -31,7 +29,6 @@ def impacts(t, argdict):
     clib.impacts.restype = None
     clib.impacts(t, *args, byref(ctypes.c_int(j)), bp, bpm, theta)
     return map(np.array, (bp, bpm, theta))
-
     
 def grad_impacts(t, argdict):
     

@@ -20,36 +20,18 @@ class planet:
     def __init__(self, r, a, t0, ecc, per, lop, inc):
         
         self.r = r
-        self.a = a
-        self.t = t0
-        self.e = ecc
-        self.p = per
-        self.w = lop
-        self.i = inc
-        
-        self.args = (a, t0, ecc, per, lop, inc)
-        argnames = ['a', 't0', 'ecc', 'per', 'lop', 'inc']
-        self.argnames = tuple([n + '_p' for n in argnames])
-        self.argdict = dict(zip(self.argnames, self.args))
+        self.lms = (a, t0, ecc, per, lop, inc)
+        self.lmnames = ['a_p', 't0_p', 'ecc_p', 'per_p', 'lop_p', 'inc_p']
+        self.lmdict = dict(zip(self.lmnames, self.lms))
     
 class moon:
     
     def __init__(self, r, a, t0, ecc, per, lan, lop, inc, mass):
         
         self.r = r
-        self.a = a
-        self.t = t0
-        self.e = ecc
-        self.p = per
-        self.O = lan
-        self.w = lop
-        self.i = inc
-        self.m = mass
-        
-        self.args = (a, t0, ecc, per, lan, lop, inc, mass)
-        argnames = ['a', 't0', 'ecc', 'per', 'lan', 'lop', 'inc', 'mass']
-        self.argnames = tuple([n + '_m' for n in argnames])
-        self.argdict = dict(zip(self.argnames, self.args))
+        self.lms = (a, t0, ecc, per, lan, lop, inc, mass)
+        self.lmnames = ['a_m', 't0_m', 'ecc_m', 'per_m', 'lan_m', 'lop_m', 'inc_m', 'mass_m']
+        self.lmdict = dict(zip(self.lmnames, self.lms))
 
 class system:
     
@@ -58,7 +40,6 @@ class system:
         self.star = star
         self.planet = planet
         self.moon = moon
-        self.arglist = ()
         self._lc = None
         self._grad = {}
         self._primary_coords = None
@@ -72,13 +53,13 @@ class system:
         m = self.moon
         
         if coords:
-            xp, yp, zp = coords(t, *(p.args + m.args))
+            xp, yp, zp = coords(t, {**p.lmdict, **m.lmdict})
             self._primary_coords = (xp, yp, zp)
             self._secondary_coords = (xm, ym, zm)
             self._computed_coords = True
         else:
             if grad:
-                bp, bpm, theta, dbp, dbpm, dtheta = grad_impacts(t, {**p.argdict, **m.argdict})
+                bp, bpm, theta, dbp, dbpm, dtheta = grad_impacts(t, {**p.lmdict, **m.lmdict})
                 lc = flux(self.star.c1, self.star.c2, p.r, m.r, bp, bpm, np.cos(theta), np.sin(theta)).T
                 self._lc = lc[ 0]
                 f_bp = lc[3]
@@ -86,14 +67,13 @@ class system:
                 f_theta = lc[5]
                 
                 df = f_bp * dbp + f_bpm * dbpm + f_theta * dtheta
-                self._grad = {(p.argnames + m.argnames)[i]: df[i] for i in range(np.shape(df)[0])}
+                self._grad = {(p.lmnames + m.lmnames)[i]: df[i] for i in range(np.shape(df)[0])}
                 self._grad['rm'] = lc[1]
                 self._grad['rp'] = lc[2]
                 self._grad['c1'] = lc[6]
                 self._grad['c2'] = lc[7]
             else:
-                #bp, bpm, theta = impacts(t, *(p.args + m.args))
-                bp, bpm, theta = impacts(t, {**p.argdict, **m.argdict})
+                bp, bpm, theta = impacts(t, {**p.lmdict, **m.lmdict})
                 self._lc = flux(self.star.c1, self.star.c2, p.r, m.r, bp, bpm, np.cos(theta), np.sin(theta))[:, 0]
         
         self._computed = True
