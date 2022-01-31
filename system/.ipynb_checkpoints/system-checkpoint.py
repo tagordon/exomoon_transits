@@ -4,7 +4,7 @@ from astropy import constants as ac
 from kep import impacts, coords, grad_impacts
 from phot import flux
 
-__all__ = ['star', 'planet', 'mon', 'system']
+__all__ = ['star', 'planet', 'moon', 'system']
 
 class star:
     
