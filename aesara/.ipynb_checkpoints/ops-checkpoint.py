@@ -9,7 +9,7 @@ import ctypes
 from ctypes import byref
 clib = ctypes.CDLL("../fortran/wrapper.so")
 
-#aesara.config.optimizer='None'
+#aesara.config.optimizer='fast_compile'
 
 clib.grad_impacts.restype = None
 clib.flux.restype = None
@@ -51,23 +51,50 @@ class FluxOp(Op):
         clib.flux(u1, u2, rp, rm, bp, bpm, cth, sth, out, byref(ctypes.c_int(j)))
         out = np.array(out).T
         
-        for i in range(8):
-            outputs[i][0] = out[i]
+        outputs[0][0] = out[0]
+        outputs[1][0] = out[6]
+        outputs[2][0] = out[7]
+        outputs[3][0] = out[1]
+        outputs[4][0] = out[2]
+        outputs[5][0] = out[3]
+        outputs[6][0] = out[4]
+        outputs[7][0] = out[5]
+        
+        #for i in range(8):
+        #    outputs[i][0] = out[i]
         
     def grad(self, inputs, gradients):
-        f, dfdu1, dfdu2, dfdrp, dfdrm, dfdbp, dfdbpm, dfdtheta = self(*inputs)
-        dcdf = gradients
-        
-        if not isinstance(dcdf[0].type, aesara.gradient.DisconnectedType):
-            return [tt.dot(dcdf, dfdx) for dfdx in (dfdu1, dfdu2, dfdrp, dfdrm, dfdbp, dfdbpm, dfdtheta)]
+        outs = self(*inputs)
+        dcdf = gradients[0]
+                
+        if not isinstance(dcdf.type, aesara.gradient.DisconnectedType):
+            return [
+                tt.dot(dcdf, outs[1]),
+                tt.dot(dcdf, outs[2]),
+                tt.dot(dcdf, outs[3]),
+                tt.dot(dcdf, outs[4]),
+                dcdf * outs[5],
+                dcdf * outs[6],
+                dcdf * outs[7]
+            ]
+        #else:
+        #    return [
+        #        tt.as_tensor_variable(0.0),
+        #        tt.as_tensor_variable(0.0),
+        #        tt.as_tensor_variable(0.0),
+        #        tt.as_tensor_variable(0.0),
+        #        tt.zeros_like(dcdf),
+        #        tt.zeros_like(dcdf),
+        #        tt.zeros_like(dcdf)
+        #    ]
         
     def R_op(self, inputs, eval_points):
         if eval_points[0] is None:
             return eval_points
         return self.grad(inputs, eval_points)
     
-    def do_constant_folding(self):
-        return False
+    #def do_constant_folding(self):
+    #    return False
 
 class ImpactsOp(Op):
         
@@ -132,12 +159,12 @@ class ImpactsOp(Op):
             if not isinstance(dcdf[2].type, aesara.gradient.DisconnectedType):
                 g[i] += tt.dot(dcdf[2], dtheta[i])
                     
-        return g #[tt.sum(x) for x in g]
+        return g
         
     def R_op(self, inputs, eval_points):
         if eval_points[0] is None:
             return eval_points
         return self.grad(inputs, eval_points)
     
-    def do_constant_folding(self):
-        return False
+    #def do_constant_folding(self):
+    #    return False

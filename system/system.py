@@ -61,7 +61,7 @@ class system:
             if grad:
                 bp, bpm, theta, dbp, dbpm, dtheta = grad_impacts(t, {**p.lmdict, **m.lmdict})
                 lc = flux(self.star.c1, self.star.c2, p.r, m.r, bp, bpm, np.cos(theta), np.sin(theta)).T
-                self._lc = lc[ 0]
+                self._lc = lc[0]
                 f_bp = lc[3]
                 f_bpm = lc[4]
                 f_theta = lc[5]
