@@ -9,12 +9,25 @@ import ctypes
 from ctypes import byref
 clib = ctypes.CDLL("../fortran/wrapper.so")
 
-#aesara.config.optimizer='fast_compile'
-
 clib.grad_impacts.restype = None
 clib.flux.restype = None
 
 class FluxOp(Op):
+    
+    """
+    An op to compute the lightcurve of a transiting planet/moon system.
+    
+    Args:
+        u1 (scalar): The first limb-darkening parameter
+        u2 (scalar): The second limb-darkening parameter
+        rp (scalar): The radius of the planet
+        rm (scalar): The radius of the moon 
+        bp (tensor): The impact parameters for the planet
+        bpm (tensor): The planet-moon separation in stellar radii 
+        theta (tensor): The angle between the vectors connecting
+            the center of the star to the center of the planet and the center 
+            of the planet to the center of the moon.
+    """
     
     def make_node(self, *args):
         inputs = list(map(as_tensor_variable, args))
@@ -51,6 +64,7 @@ class FluxOp(Op):
         clib.flux(u1, u2, rp, rm, bp, bpm, cth, sth, out, byref(ctypes.c_int(j)))
         out = np.array(out).T
         
+        # could change parameter order output from clib.flux so that this doesn't look so weird 
         outputs[0][0] = out[0]
         outputs[1][0] = out[6]
         outputs[2][0] = out[7]
@@ -59,9 +73,6 @@ class FluxOp(Op):
         outputs[5][0] = out[3]
         outputs[6][0] = out[4]
         outputs[7][0] = out[5]
-        
-        #for i in range(8):
-        #    outputs[i][0] = out[i]
         
     def grad(self, inputs, gradients):
         outs = self(*inputs)
@@ -77,26 +88,52 @@ class FluxOp(Op):
                 dcdf * outs[6],
                 dcdf * outs[7]
             ]
-        #else:
-        #    return [
-        #        tt.as_tensor_variable(0.0),
-        #        tt.as_tensor_variable(0.0),
-        #        tt.as_tensor_variable(0.0),
-        #        tt.as_tensor_variable(0.0),
-        #        tt.zeros_like(dcdf),
-        #        tt.zeros_like(dcdf),
-        #        tt.zeros_like(dcdf)
-        #    ]
+        else:
+            return [
+                tt.as_tensor_variable(0.0),
+                tt.as_tensor_variable(0.0),
+                tt.as_tensor_variable(0.0),
+                tt.as_tensor_variable(0.0),
+                tt.zeros_like(dcdf),
+                tt.zeros_like(dcdf),
+                tt.zeros_like(dcdf)
+            ]
         
     def R_op(self, inputs, eval_points):
         if eval_points[0] is None:
             return eval_points
         return self.grad(inputs, eval_points)
-    
-    #def do_constant_folding(self):
-    #    return False
 
 class ImpactsOp(Op):
+    
+    """
+    An op to compute the inputs required to find the lightcurve for the system. 
+    To instantiate the op, an array of times at which to compute the lightcurve 
+    should be passed. 
+    
+    Args:
+        ab (scalar): Semimajor axis
+        tb (scalar): Time of periastron passage
+        eb (scalar): Eccentricity
+        pb (scalar): Period
+        wb (scalar): Argument of periastron (in radians)
+        ib (scalar): Inclination (in radians)
+        am (scalar): Semimajor axis
+        tm (scalar): Time of periastron passage
+        em (scalar): Eccentricity
+        pm (scalar): Period
+        om (scalar): Longitude of ascending node (in radians)
+        wm (scalar): Argument of periastron (in radians)
+        im (scalar): Inclination (in radians)
+        mm (scalar): Moon/planet mass ratio
+        
+    Returns:
+        bp (tensor): The impact parameters for the planet
+        bpm (tensor): The planet-moon separation in stellar radii 
+        theta (tensor): The angle between the vectors connecting
+            the center of the star to the center of the planet and the center 
+            of the planet to the center of the moon.
+    """
         
     def __init__(self, t):
         self.t = t
@@ -149,6 +186,8 @@ class ImpactsOp(Op):
         dtheta = [outs[31 + i] for i in range(14)]
         
         dcdf = gradients
+        
+        # might wanna change this to a tensor? 
         g = [0] * 14
         
         for i in range(14):
@@ -165,6 +204,3 @@ class ImpactsOp(Op):
         if eval_points[0] is None:
             return eval_points
         return self.grad(inputs, eval_points)
-    
-    #def do_constant_folding(self):
-    #    return False

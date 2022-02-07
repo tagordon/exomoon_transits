@@ -4,12 +4,12 @@ from ctypes import byref
 clib = ctypes.CDLL("../fortran/wrapper.so")
 
 __args__ = [
-    'ap', 
-    'tp', 
-    'ep', 
-    'pp', 
-    'wp', 
-    'ip',      
+    'ab', 
+    'tb', 
+    'eb', 
+    'pb', 
+    'wb', 
+    'ib',      
     'am', 
     'tm', 
     'em', 
