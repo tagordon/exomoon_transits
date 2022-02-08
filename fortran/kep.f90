@@ -435,13 +435,13 @@ subroutine coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     y = -r * (somegam * cosfw + comegam * sinfw * cim)
     z = r * sinfw * Sin(im)
         
-    xp = xbc + x * mrp
-    yp = ybc + y * mrp
-    zp = zbc + z * mrp
+    xp = xbc + x * mrm
+    yp = ybc + y * mrm
+    zp = zbc + z * mrm
 
-    xm = xbc + x * mrm
-    ym = ybc + y * mrm
-    zm = zbc + z * mrm
+    xm = xbc + x * mrp
+    ym = ybc + y * mrp
+    zm = zbc + z * mrp
     
 end
 
@@ -465,7 +465,7 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     
     real*8 :: np_Pp, nm_Pm
     real*8 :: np_ms, np_mp, np_mm, nm_mp, nm_mm
-    real*8 :: mrp_mm, mrm_mm
+    real*8 :: mrp_mm, mrm_mm, mp
     real*8, dimension(j) :: r_t0, r_e, r_cosf
     real*8, dimension(j) :: f_M, f_e
     real*8, dimension(j) :: ccmss, cspsc, scpcs, ssmcc
@@ -494,6 +494,8 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     
     mrp_mm = - mrp / (1.d0 + mm)
     mrm_mm = mrp_mm
+    
+    mp = 1.d0 / mm
     
     call grad_kepler_solve_RPP(np * (t - t0p), ep, cosf, sinf, f_e, f_M, j)
     
@@ -570,48 +572,48 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     y_a = -r * scpcs / am
         
     ! ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, Pm, wm, Om, im, mm
-    xp = xbc + x * mrp
-    dxp(:, 7) = x_a * mrp
-    dxp(:, 8) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrp
-    dxp(:, 9) = (- r_e * ccmss + r * f_e * cspsc) * mrp
-    dxp(:, 10) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrp
-    dxp(:, 11) = r * cspsc * mrp
-    dxp(:, 12) = r * scpcs * mrp
-    dxp(:, 13) = -r * somegam * sinfw * sim * mrp
-    dxp(:, 14) = x * mrp_mm
+    xp = xbc + x * mrm
+    dxp(:, 7) = x_a * mrm
+    dxp(:, 8) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrm
+    dxp(:, 9) = (- r_e * ccmss + r * f_e * cspsc) * mrm
+    dxp(:, 10) = (- r_Pm * ccmss + r * f_M * (t - t0m) * nm_Pm * cspsc) * mrm
+    dxp(:, 11) = r * cspsc * mrm
+    dxp(:, 12) = r * scpcs * mrm
+    dxp(:, 13) = -r * somegam * sinfw * sim * mrm
+    dxp(:, 14) = x * mrm_mm
     
-    yp = ybc + y * mrp
+    yp = ybc + y * mrm
 
-    dyp(:, 7) = y_a * mrp
-    dyp(:, 8) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrp
-    dyp(:, 9) = (- r_e * scpcs + r * f_e * ssmcc) * mrp
-    dyp(:, 10) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrp
-    dyp(:, 11) = r * ssmcc * mrp
-    dyp(:, 12) = - r * ccmss * mrp
-    dyp(:, 13) = r * comegam * sinfw * sim * mrp
-    dyp(:, 14) = y * mrp_mm
+    dyp(:, 7) = y_a * mrm
+    dyp(:, 8) = (- r_t0 * scpcs - r * f_M * nm * ssmcc) * mrm
+    dyp(:, 9) = (- r_e * scpcs + r * f_e * ssmcc) * mrm
+    dyp(:, 10) = (- r_Pm * scpcs + r * f_M * (t - t0m) * nm_Pm * ssmcc) * mrm
+    dyp(:, 11) = r * ssmcc * mrm
+    dyp(:, 12) = - r * ccmss * mrm
+    dyp(:, 13) = r * comegam * sinfw * sim * mrm
+    dyp(:, 14) = y * mrm_mm
 
-    xm = xbc + x * mrm
+    xm = xbc + x * mrp
 
     dxm(:, 7) = x_a * mrm
-    dxm(:, 8) = -dxp(:, 8) * mm
-    dxm(:, 9) = -dxp(:, 9) * mm
-    dxm(:, 10) = -dxp(:, 10) * mm
-    dxm(:, 11) = -dxp(:, 11) * mm
-    dxm(:, 12) = -dxp(:, 12) * mm
-    dxm(:, 13) = -dxp(:, 13) * mm
-    dxm(:, 14) = x * mrm_mm
+    dxm(:, 8) = -dxp(:, 8) * mp
+    dxm(:, 9) = -dxp(:, 9) * mp
+    dxm(:, 10) = -dxp(:, 10) * mp
+    dxm(:, 11) = -dxp(:, 11) * mp
+    dxm(:, 12) = -dxp(:, 12) * mp
+    dxm(:, 13) = -dxp(:, 13) * mp
+    dxm(:, 14) = x * mrp_mm
     
-    ym = ybc + y * mrm
+    ym = ybc + y * mrp
 
-    dym(:, 7) = y_a * mrm
-    dym(:, 8) = -dyp(:, 8) * mm
-    dym(:, 9) = -dyp(:, 9) * mm
-    dym(:, 10) = -dyp(:, 10) * mm
-    dym(:, 11) = -dyp(:, 11) * mm
-    dym(:, 12) = -dyp(:, 12) * mm
-    dym(:, 13) = -dyp(:, 13) * mm
-    dym(:, 14) = y * mrm_mm
+    dym(:, 7) = y_a * mrp
+    dym(:, 8) = -dyp(:, 8) * mp
+    dym(:, 9) = -dyp(:, 9) * mp
+    dym(:, 10) = -dyp(:, 10) * mp
+    dym(:, 11) = -dyp(:, 11) * mp
+    dym(:, 12) = -dyp(:, 12) * mp
+    dym(:, 13) = -dyp(:, 13) * mp
+    dym(:, 14) = y * mrp_mm
     
 end
 
@@ -728,20 +730,20 @@ subroutine impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
         b = bpm(i)
         c = bm(i)
         
-        if (a .GT. b) then
+        if (a .gt. b) then
             tmp = b
             b = a
             a = tmp
         end if
-        if (b .GT. c) then
+        if (b .gt. c) then
             mu = c - (a - b)
         else
             mu = b - (a - c)
         end if
         
-        if (bpm .EQ. 0.d0) .OR. ((a - b + c) .LT. 1.d-15) then
+        if ((bpm(i) .eq. 0.d0) .or. ((a - b + c) .lt. 1.d-15)) then
             theta(i) = 0.d0
-        else if ((a - c + b) .LT. 1.d-15) then 
+        else if ((a - c + b) .lt. 1.d-15) then 
             theta(i) = pi
         else
             theta(i) = 2 * Atan(Sqrt(((a - b) + c) * mu / ((a + (b + c)) * ((a - c) + b))))
