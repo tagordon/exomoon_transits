@@ -136,7 +136,7 @@ class System:
         self.bo = bo
         self.mo = mo
         
-    def lightcurve(self, t, rp, rm, u1, u2):
+    def lightcurve(self, t, u1, u2, rp, rm):
         
         """
         Get the lightcurve resulting from a transit of the moon/planet system.
