@@ -29,7 +29,7 @@ subroutine kepler_solve(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve")
         cosf = (1.d0 - tanfhalf2) * denom
         sinf = 2 * tanfhalf * denom
     else
-        tol = 1.d-10
+        tol = 1.d-15
         
         E = M
         x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
@@ -502,7 +502,7 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     r_cosf = - r * ep * denom
     r_t0 = r_cosf * sinf * f_M * np
     r_e = -r_cosf * sinf * f_e - ap * (cosf + 2 * ep + cosf * ep * ep) * denom * denom
-    r_Pp = -(r_cosf * sinf * f_M * (t - t0p) + 2 * r / (3.d0 * np)) * np_Pp
+    r_Pp = -r_cosf * sinf * f_M * (t - t0p) * np_Pp
      
     cosfw = cwp * cosf - swp * sinf
     sinfw = swp * cosf + sinf * cwp
@@ -555,7 +555,7 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
     r_cosf = - em * r * denom
     r_t0 = r_cosf * sinf * f_M * nm
     r_e = -r_cosf * sinf * f_e - am * (cosf + 2 * em + cosf * em * em) * denom * denom
-    r_Pm = -(r_cosf * sinf * f_M * (t - t0m) + 2 * r / (3.d0 * nm)) * nm_Pm
+    r_Pm = -r_cosf * sinf * f_M * (t - t0m) * nm_Pm
      
     cosfw = cwm * cosf - swm * sinf
     sinfw = swm * cosf + sinf * cwm
