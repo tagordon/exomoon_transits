@@ -738,8 +738,14 @@ subroutine impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
         else
             mu = b - (a - c)
         end if
-            
-        theta(i) = 2 * Atan(Sqrt(((a - b) + c) * mu / ((a + (b + c)) * ((a - c) + b))))
+        
+        if (bpm .EQ. 0.d0) .OR. ((a - b + c) .LT. 1.d-15) then
+            theta(i) = 0.d0
+        else if ((a - c + b) .LT. 1.d-15) then 
+            theta(i) = pi
+        else
+            theta(i) = 2 * Atan(Sqrt(((a - b) + c) * mu / ((a + (b + c)) * ((a - c) + b))))
+        end if
     end do
 
     bp = bp * au_rsun

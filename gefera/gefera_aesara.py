@@ -2,12 +2,12 @@ import aesara
 from ops import ImpactsOp, FluxOp
 
 __args__ = [
-    'ap', 
-    'tp', 
-    'ep', 
-    'pp', 
-    'wp', 
-    'ip',     
+    'ab', 
+    'tb', 
+    'eb', 
+    'pb', 
+    'wb', 
+    'ib',     
     'am', 
     'tm', 
     'em', 
@@ -136,7 +136,7 @@ class System:
         self.bo = bo
         self.mo = mo
         
-    def light_curve(self, t, rp, rm, u1, u2):
+    def lightcurve(self, t, rp, rm, u1, u2):
         
         """
         Get the lightcurve resulting from a transit of the moon/planet system.
