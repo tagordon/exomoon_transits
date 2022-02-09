@@ -573,6 +573,7 @@ subroutine grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, &
         
     ! ms, t0p, ep, Pp, Op, wp, ip, mp, t0m, em, Pm, wm, Om, im, mm
     xp = xbc + x * mrm
+    
     dxp(:, 7) = x_a * mrm
     dxp(:, 8) = (- r_t0 * ccmss - r * f_M * nm * cspsc) * mrm
     dxp(:, 9) = (- r_e * ccmss + r * f_e * cspsc) * mrm
@@ -713,7 +714,7 @@ subroutine impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
     real (c_double), bind(C), intent(out), dimension(j) :: bp, bpm, theta
     
     call coords(t, ap, t0p, ep, Pp, wp, ip, am, t0m, em, &
-                Pm, wm, Om, im, mm, j, xp, yp, zp, xm, ym, zm)
+                Pm, Om, wm, im, mm, j, xp, yp, zp, xm, ym, zm)
     
     bm2 = xm**2.d0 + ym**2.d0
     bm = Sqrt(bm2)
