@@ -302,10 +302,11 @@ void area(double * a, double zp, double zm, double zpm, double pp, double pm){
                 ap = pow(pp, 2) * PI;
                 am = alpha;
             }
+            // bookmark -- issue with this case. 
             else{
                 casenum = 24;
                 alpha1 = overlap(1, pm, zm, false);
-                alpha1 = overlap(pp, pm, zpm, true);
+                alpha2 = overlap(pp, pm, zpm, true);
                 
                 ap = pow(pp, 2) * PI;
                 am = (alpha1 - alpha2);
