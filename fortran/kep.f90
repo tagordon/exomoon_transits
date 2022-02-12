@@ -637,7 +637,7 @@ subroutine grad_impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
     real (c_double), bind(C), intent(out), dimension(j, 14) :: dbp, dbpm, dtheta
     
     call grad_coords(t, ap, t0p, ep, Pp, wp, ip, am, t0m, em, &
-                Pm, wm, Om, im, mm, j, xp, yp, xm, ym, &
+                Pm, Om, wm, im, mm, j, xp, yp, xm, ym, &
                 dxp, dyp, dxm, dym)
         
     bm2 = xm**2.d0 + ym**2.d0

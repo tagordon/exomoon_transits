@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from timeit import default_timer as timer
 
 from kep import impacts, coords, grad_impacts
-from phot import flux
+from phot import flux, flux_ng
 
 __all__ = ['BarycenterOrbit', 'MoonOrbit', 'System']
     
@@ -125,6 +126,49 @@ class System:
         xp, yp, zp, xm, ym, zm = coords(t, {**bo.pdict, **mo.pdict})
         return (xp, yp, zp), (xm, ym, zm)
     
+    def impacts(self, t, grad=False):
+        
+        bo = self.bo
+        mo = self.mo
+        
+        if grad:
+            bp, bpm, theta, dbp, dbpm, dtheta = grad_impacts(
+                t, 
+                {**bo.pdict, **mo.pdict}
+            )
+            return bp, bpm, theta, dbp, dbpm, dtheta
+        else:
+            bp, bpm, theta = impacts(t, {**bo.pdict, **mo.pdict})
+            return bp, bpm, theta
+    
+    def phot(self, t, u1, u2, rp, rm, bp, bpm, theta, grad=False):
+        
+        if grad:
+            lc = flux(
+                u1, 
+                u2, 
+                rp, 
+                rm, 
+                bp, 
+                bpm, 
+                np.cos(theta), 
+                np.sin(theta)
+            ).T
+        else:
+            lc = flux_ng(
+                u1, 
+                u2, 
+                rp, 
+                rm, 
+                bp, 
+                bpm, 
+                np.cos(theta), 
+                np.sin(theta)
+            )
+        
+        return lc
+        
+    
     def lightcurve(self, t, u1, u2, rp, rm, grad=False):
         
         """
@@ -193,7 +237,7 @@ class System:
                 t, 
                 {**bo.pdict, **mo.pdict}
             )
-            self._lc = flux(
+            self._lc = flux_ng(
                 u1, 
                 u2, 
                 rp, 
@@ -202,7 +246,7 @@ class System:
                 bpm, 
                 np.cos(theta), 
                 np.sin(theta)
-            )[:, 0]
+            )
             
             return self._lc
             
@@ -226,7 +270,45 @@ class System:
         s2 = sigma * sigma
         return -0.5 * np.sum((y - mu) ** 2 / s2 + np.log(s2))
     
-    def draw(self, ax, t, rp, rm, ld_params=None, cmap=plt.cm.copper):
+    def time(self, t, u1, u2, rp, rm, phot_only=False, grad=False, ntimes=1):
+        
+        bo = self.bo
+        mo = self.mo
+        
+        if phot_only:
+            bp, bpm, theta = self.impacts(t)
+            if grad:
+                start = timer()
+                for _ in range(ntimes):
+                    lc = self.phot(t, u1, u2, rp, rm, bp, bpm, theta, grad=True)
+                end = timer()
+            else:
+                start = timer()
+                for _ in range(ntimes):
+                    lc = self.phot(t, u1, u2, rp, rm, bp, bpm, theta)
+                end = timer()
+        else:
+            if grad:
+                start = timer()
+                for _ in range(ntimes):
+                    bp, bpm, theta, dbp, dbpm, dtheta = self.impacts(t, grad=True)
+                    lc = self.phot(t, u1, u2, rp, rm, bp, bpm, theta, grad=True)
+                    df = (
+                        lc[3] * dbp 
+                        + lc[4] * dbpm 
+                        + lc[5] * dtheta
+                    )
+                end = timer()
+            else:
+                start = timer()
+                for _ in range(ntimes):
+                    bp, bpm, theta = self.impacts(t)
+                    lc = self.phot(t, u1, u2, rp, rm, bp, bpm, theta)
+                end = timer()
+        return (end - start) / ntimes
+        
+    
+    def draw(self, ax, t, rp, rm, ld_params=None, cmap=plt.cm.copper, fill=True):
         
         au_r = 215.03215567054764
         
@@ -242,13 +324,13 @@ class System:
             (xp * au_r, yp * au_r),
             radius=rp,
             color='k',
-            fill=True
+            fill=fill
         )
         moon = plt.Circle(
             (xm * au_r, ym * au_r),
             radius=rm,
             color='k',
-            fill=True
+            fill=fill
         )
         if ld_params is None:
             star = plt.Circle((0, 0), radius=1, color=cmap(1.0), fill=True)
@@ -274,13 +356,13 @@ class System:
             cmap.set_bad('white')
 
             edge = plt.Circle(
-                (0.0045, -0.0065), 
-                radius=0.99, 
+                (0.005, -0.0), 
+                radius=1.0, 
                 color='w',
                 fill=False, 
-                linewidth=3.5
+                linewidth=4
             )
-        
+            
             ax.imshow(z, interpolation='bilinear', extent=(-1, 1, -1, 1), cmap=cmap)
             ax.add_patch(edge)
             
@@ -325,11 +407,11 @@ class System:
             cmap.set_bad('white')
 
             edge = plt.Circle(
-                (0.0045, -0.0065), 
-                radius=0.99, 
+                (0.005, -0.0), 
+                radius=1.0, 
                 color='w',
                 fill=False, 
-                linewidth=3.5
+                linewidth=4
             )
         
             ax.imshow(z, interpolation='bilinear', extent=(-1, 1, -1, 1), cmap=cmap)
