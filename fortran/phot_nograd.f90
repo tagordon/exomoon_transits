@@ -632,7 +632,7 @@ function F_ng(ld, phi, r, b, pflag, limbflag)
                 !ellipf = el2((tans), (sqomm), (o), (o))
                 
                 !eplusf = alpha * ellipe + beta * ellipf
-                eplusf = el2((sqomm), (o), alpha + beta, beta + alpha * (1.d0 - m))
+                eplusf = el2((tans), (sqomm), alpha + beta, beta + alpha * (1.d0 - m))
 
             end if
             F_(2) = eplusf + gamma * ellippi + d
@@ -679,7 +679,7 @@ function F_ng(ld, phi, r, b, pflag, limbflag)
             end if
                 
             !eplusf = alpha * ellipe + beta * ellipf
-            eplusf = el2((sqomm), (o), alpha + beta, beta + alpha * (1.d0 - m))
+            eplusf = el2((tphihalf), (sqomm), alpha + beta, beta + alpha * (1.d0 - m))
             
             F_(2) = eplusf + gamma * ellippi + d
         end if

@@ -6,6 +6,8 @@ from timeit import default_timer as timer
 from kep import impacts, coords, grad_impacts
 from phot import flux, flux_ng
 
+au_r = 215.03215567054764
+
 __all__ = ['BarycenterOrbit', 'MoonOrbit', 'System']
     
 class BarycenterOrbit:
@@ -124,7 +126,7 @@ class System:
         mo = self.mo
         
         xp, yp, zp, xm, ym, zm = coords(t, {**bo.pdict, **mo.pdict})
-        return (xp, yp, zp), (xm, ym, zm)
+        return (xp * au_r, yp * au_r, zp * au_r), (xm * au_r, ym * au_r, zm * au_r)
     
     def impacts(self, t, grad=False):
         
@@ -310,8 +312,6 @@ class System:
     
     def draw(self, ax, t, rp, rm, ld_params=None, cmap=plt.cm.copper, fill=True):
         
-        au_r = 215.03215567054764
-        
         bo = self.bo
         mo = self.mo
         
@@ -321,13 +321,13 @@ class System:
         xp, yp, zp, xm, ym, zm = coords(np.array([t]), {**bo.pdict, **mo.pdict})            
         
         planet = plt.Circle(
-            (xp * au_r, yp * au_r),
+            (xp, yp),
             radius=rp,
             color='k',
             fill=fill
         )
         moon = plt.Circle(
-            (xm * au_r, ym * au_r),
+            (xm, ym),
             radius=rm,
             color='k',
             fill=fill
@@ -376,7 +376,6 @@ class System:
         
         t = np.ascontiguousarray(t)
         ax = fig.gca()
-        au_r = 215.03215567054764
         
         bo = self.bo
         mo = self.mo
@@ -437,8 +436,8 @@ class System:
         
         def update(i):
 
-            p_patch.set_center((xp[i] * au_r, yp[i] * au_r))
-            m_patch.set_center((xm[i] * au_r, ym[i] * au_r))
+            p_patch.set_center((xp[i], yp[i]))
+            m_patch.set_center((xm[i], ym[i]))
             return p_patch, m_patch
         
         return animation.FuncAnimation(
