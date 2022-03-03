@@ -1,34 +1,33 @@
 import numpy as np
 import ctypes
 from ctypes import byref
-clib = ctypes.CDLL("../fortran/wrapper.so")
 
 __args__ = [
-    'ab', 
-    'tb', 
-    'eb', 
-    'pb', 
-    'wb', 
-    'ib',      
-    'am', 
-    'tm', 
-    'em', 
-    'pm', 
-    'om', 
-    'wm', 
-    'im', 
-    'mm'
+    'a1', 
+    't1', 
+    'e1', 
+    'p1', 
+    'w1', 
+    'i1',      
+    'a2', 
+    't2', 
+    'e2', 
+    'p2', 
+    'o2', 
+    'w2', 
+    'i2', 
+    'm2'
 ]
 
-def validate_elements(argdict):
+def validate_elements(argdict, arglist):
     
-    if set(argdict.keys()) == set(__args__):
+    if set(argdict.keys()) == set(arglist):
         
         argdict = {
             k: byref(ctypes.c_double(v)) 
             for k, v in argdict.items()
         }
-        idm = {v: i for i, v in enumerate(__args__)}
+        idm = {v: i for i, v in enumerate(arglist)}
         args = tuple(
             dict(
                 sorted(
@@ -41,82 +40,89 @@ def validate_elements(argdict):
     else:
         raise ValueError(
             "required parameters are: ", 
-            __args__
+            arglist
         )
 
-def impacts(t, argdict):
+class Kepler:
     
-    j = len(t)
-    bp, bpm, theta = tuple(
-        (ctypes.c_double * j).from_buffer(np.zeros(j)) 
-        for a in range(3)
-    )
-    t = byref((ctypes.c_double * j).from_buffer(t))
-    
-    args = validate_elements(argdict)
-    clib.impacts.restype = None
-    clib.impacts(
-        t, 
-        *args, 
-        byref(ctypes.c_int(j)), bp, bpm, theta
-    )
-    
-    return map(np.array, (bp, bpm, theta))
-    
-def grad_impacts(t, argdict):
-    
-    j = len(t)
-    bp, bpm, theta = tuple(
-        (ctypes.c_double * j).from_buffer(np.zeros(j)) 
-        for a in range(3)
-    )
-    dbp, dbpm, dtheta = tuple(
-        ((ctypes.c_double * j) * 14).from_buffer(np.zeros((j, 14))) 
-        for a in range(3)
-    )
-    t = byref((ctypes.c_double * j).from_buffer(t))
-    
-    args = validate_elements(argdict)
-    clib.grad_impacts.restype = None
-    clib.grad_impacts(
-        t, 
-        *args, 
-        byref(ctypes.c_int(j)), 
-        bp, 
-        bpm, 
-        theta, 
-        dbp, 
-        dbpm, 
-        dtheta
-    )
+    def __init__(self, args, lib):
         
-    return map(
-        np.array, 
-        (bp, bpm, theta, dbp, dbpm, dtheta)
-    )
+        self.lib = lib
+        self.args = args
 
-def coords(t, argdict):
+    def impacts(self, t, argdict):
     
-    clib.coords.restype = None
-    j = len(t)
+        j = len(t)
+        bp, bpm, theta = tuple(
+            (ctypes.c_double * j).from_buffer(np.zeros(j)) 
+            for a in range(3)
+        )
+        t = byref((ctypes.c_double * j).from_buffer(t))
     
-    xp, yp, zp, xm, ym, zm = tuple(
-        (ctypes.c_double * j).from_buffer(np.zeros(j)) 
-        for a in range(6)
-    )
-    t = byref((ctypes.c_double * len(t)).from_buffer(t))
+        args = validate_elements(argdict, self.args)
+        self.lib.impacts.restype = None
+        self.lib.impacts(
+            t, 
+            *args, 
+            byref(ctypes.c_int(j)), bp, bpm, theta
+        )
     
-    args = validate_elements(argdict)
+        return map(np.array, (bp, bpm, theta))
     
-    clib.coords(
-        t, 
-        *args, 
-        byref(ctypes.c_int(j)), 
-        xp, yp, zp, 
-        xm, ym, zm
-    )
+    def grad_impacts(self, t, argdict):
     
-    return map(
-        np.array, 
-        (xp, yp, zp, xm, ym, zm)
-    )
+        j = len(t)
+        bp, bpm, theta = tuple(
+            (ctypes.c_double * j).from_buffer(np.zeros(j)) 
+            for a in range(3)
+        )
+        dbp, dbpm, dtheta = tuple(
+            ((ctypes.c_double * j) * len(self.args)).from_buffer(np.zeros((j, len(self.args)))) 
+            for a in range(3)
+        )
+        t = byref((ctypes.c_double * j).from_buffer(t))
+    
+        args = validate_elements(argdict, self.args)
+        self.lib.grad_impacts.restype = None
+        self.lib.grad_impacts(
+            t, 
+            *args, 
+            byref(ctypes.c_int(j)), 
+            bp, 
+            bpm, 
+            theta, 
+            dbp, 
+            dbpm, 
+            dtheta
+        )
+        
+        return map(
+            np.array, 
+            (bp, bpm, theta, dbp, dbpm, dtheta)
+        )
+
+    def coords(self, t, argdict):
+    
+        self.lib.coords.restype = None
+        j = len(t)
+    
+        xp, yp, zp, xm, ym, zm = tuple(
+            (ctypes.c_double * j).from_buffer(np.zeros(j)) 
+            for a in range(6)
+        )
+        t = byref((ctypes.c_double * len(t)).from_buffer(t))
+    
+        args = validate_elements(argdict, self.args)
+    
+        self.lib.coords(
+            t, 
+            *args, 
+            byref(ctypes.c_int(j)), 
+            xp, yp, zp, 
+            xm, ym, zm
+        )
+    
+        return map(
+            np.array, 
+            (xp, yp, zp, xm, ym, zm)
+        )

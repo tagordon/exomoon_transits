@@ -4,7 +4,7 @@ use ellip
 
 implicit none
 
-real*8, parameter :: pi = 4.d0 * Atan(1.d0), pihalf = 2.d0 * Atan(1.d0)
+!real*8, parameter :: pi = 4.d0 * Atan(1.d0), pihalf = 2.d0 * Atan(1.d0)
 real*8, parameter :: twopithree = 8.d0 * Atan(1.d0) / 3.d0, twopi = 8.d0 * Atan(1.d0)
 real*8, parameter :: o3 = 1.d0 / 3.d0, o9 = 1.d0 / 9.d0
 real*8, parameter :: pithird = 4.d0 * Atan(1.d0) / 3.d0, pisixth = 4.d0 * Atan(1.d0) / 6.d0

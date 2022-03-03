@@ -4,7 +4,7 @@ import ctypes
 import sys
 sys.path.append('../gefera')
 import gefera
-clib = ctypes.CDLL("./photodynam.so")
+clib = ctypes.CDLL("../pd/photodynam.so")
 clib.flux.restype = None
 
 def flux(xp, yp, xm, ym, rp, rm, u1, u2):
@@ -32,7 +32,7 @@ def time(t, u1, u2, rp, rm, ntimes, gefera_model):
     xm, ym, _ = m
     start = timer()
     for _ in range(ntimes):
-        lc = self.phot(t, u1, u2, rp, rm, bp, bpm, theta, grad=True)
+        lc = flux(xp, yp, xm, ym, rp, rm, u1, u2)
     end = timer()
     return (end - start) / ntimes
     
