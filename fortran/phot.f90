@@ -196,7 +196,6 @@ subroutine bm_x(bp, bm, bpm, cth, sth, dbm)
     dbm(3) = bp * bpm * sth * obm
 end 
 
-
 ! main loop to compute the flux at each timestep by finding the correct geometry and
 ! calling the integration routines 
 subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")

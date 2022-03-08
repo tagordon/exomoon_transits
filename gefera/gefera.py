@@ -216,7 +216,7 @@ class System:
         
         return lc
     
-    def lightcurve(self, t, u1, u2, r1, r2, grad=False):
+    def lightcurve(self, t, u1, u2, r1, r2, grad=False, integrate=None, dt=None):
         
         """
         Get the lightcurve resulting from a transit of the moon/planet system.
@@ -236,6 +236,23 @@ class System:
                 lightcurve with respect to each of the input parameters.
             
         """
+        if integrate == 'trap':
+            ta = t - dt / 2
+            tb = t + dt / 2
+            if grad:
+                fa, ga = self.lightcurve(ta, u1, u2, r1, r2, grad=True)
+                fb, gb = self.lightcurve(tb, u1, u2, r1, r2, grad=True)
+                lc = (fa + fb) / 2
+                grad = {
+                    ka: (va + vb) / 2
+                    for (ka, va), (kb, vb) in zip(ga.items(), gb.items())
+                }
+                return lc, grad
+            else:
+                fa = self.lightcurve(ta, u1, u2, r1, r2)
+                fb = self.lightcurve(tb, u1, u2, r1, r2)
+                lc = (fa + fb) / 2
+                return lc
         
         if grad:
             bp, bpm, theta, dbp, dbpm, dtheta = self.kep.grad_impacts(
@@ -295,7 +312,7 @@ class System:
             
             return lc
         
-    def loglike(self, y, t, u1, u2, r1, r2, sigma):
+    def loglike(self, y, t, u1, u2, r1, r2, sigma, integrate=None, dt=None):
         
         """
         Get the log-likelihood of the lightcurve.
@@ -311,7 +328,7 @@ class System:
             sigma: The standard deviation of the model
         """
         
-        mu = self.lightcurve(t, u1, u2, r1, r2)
+        mu = self.lightcurve(t, u1, u2, r1, r2, integrate=None, dt=None)
         s2 = sigma * sigma
         return -0.5 * np.sum((y - mu) ** 2 / s2 + np.log(s2))
 
