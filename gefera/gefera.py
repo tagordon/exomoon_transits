@@ -236,7 +236,27 @@ class System:
                 lightcurve with respect to each of the input parameters.
             
         """
-        if integrate == 'trap':
+        if integrate == 'simpson':
+            ta = t - dt / 2
+            tb = t + dt / 2
+            
+            if grad:
+                f, g = self.lightcurve(t, u1, u2, r1, r2, grad=True)
+                fa, ga = self.lightcurve(ta, u1, u2, r1, r2, grad=True)
+                fb, gb = self.lightcurve(tb, u1, u2, r1, r2, grad=True)
+                lc = (fa + 4 * f + fb) / 6
+                grad = {
+                        ka: (va + 4 * v + vb) / 6
+                        for (k, v), (ka, va), (kb, vb) in zip(g.items(), ga.items(), gb.items())
+                }
+                return lc, grad
+            else:
+                f = self.lightcurve(t, u1, u2, r1, r2, grad=False)
+                fa = self.lightcurve(ta, u1, u2, r1, r2, grad=False)
+                fb = self.lightcurve(tb, u1, u2, r1, r2, grad=False)
+                return (fa + 4 * f + fb) / 6
+        
+        if integrate == 'trapezoid':
             
             if dt is None:
                 dt = np.diff(t)
