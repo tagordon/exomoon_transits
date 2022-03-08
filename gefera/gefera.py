@@ -237,22 +237,42 @@ class System:
             
         """
         if integrate == 'trap':
-            ta = t - dt / 2
-            tb = t + dt / 2
-            if grad:
-                fa, ga = self.lightcurve(ta, u1, u2, r1, r2, grad=True)
-                fb, gb = self.lightcurve(tb, u1, u2, r1, r2, grad=True)
-                lc = (fa + fb) / 2
-                grad = {
-                    ka: (va + vb) / 2
-                    for (ka, va), (kb, vb) in zip(ga.items(), gb.items())
-                }
-                return lc, grad
+            
+            if dt is None:
+                dt = np.diff(t)
+                tt = np.zeros(len(t) + 1)
+                tt[1:-1] = t[1:] - dt / 2
+                tt[0] = t[0] - dt[0] / 2
+                tt[-1] = t[-1] + dt[-1] / 2
+                
+                if grad:
+                    f, g = self.lightcurve(tt, u1, u2, r1, r2, grad=True)
+                    lc = (f[1:] + f[:-1]) / 2
+                    grad = {
+                        k: (v[1:] + v[:-1]) / 2
+                        for k, v in g.items()
+                    }
+                    return lc, grad
+                else:
+                    f = self.lightcurve(tt, u1, u2, r1, r2, grad=False)
+                    return (f[1:] + f[:-1]) / 2
             else:
-                fa = self.lightcurve(ta, u1, u2, r1, r2)
-                fb = self.lightcurve(tb, u1, u2, r1, r2)
-                lc = (fa + fb) / 2
-                return lc
+            
+                ta = t - dt / 2
+                tb = t + dt / 2
+                if grad:
+                    fa, ga = self.lightcurve(ta, u1, u2, r1, r2, grad=True)
+                    fb, gb = self.lightcurve(tb, u1, u2, r1, r2, grad=True)
+                    lc = (fa + fb) / 2
+                    grad = {
+                        ka: (va + vb) / 2
+                        for (ka, va), (kb, vb) in zip(ga.items(), gb.items())
+                    }
+                    return lc, grad
+                else:
+                    fa = self.lightcurve(ta, u1, u2, r1, r2)
+                    fb = self.lightcurve(tb, u1, u2, r1, r2)
+                    return (fa + fb) / 2
         
         if grad:
             bp, bpm, theta, dbp, dbpm, dtheta = self.kep.grad_impacts(
@@ -299,7 +319,7 @@ class System:
                 t, 
                 self.pdict
             )
-            lc = flux_ng(
+            return flux_ng(
                 u1, 
                 u2, 
                 r1, 
@@ -309,9 +329,7 @@ class System:
                 np.cos(theta), 
                 np.sin(theta)
             )
-            
-            return lc
-        
+                    
     def loglike(self, y, t, u1, u2, r1, r2, sigma, integrate=None, dt=None):
         
         """
