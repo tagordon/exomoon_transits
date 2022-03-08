@@ -173,7 +173,7 @@ class System:
             mc: Coordinates of the moon as a tuple of arrays (x, y, z)
         """
         
-        x1, y1, z1, x2, y2, z2 = self.coordfunc(t, self.pdict)
+        x1, y1, z1, x2, y2, z2 = self.kep.coords(t, self.pdict)
         return ((x1 * au_r, y1 * au_r, z1 * au_r), 
                 (x2 * au_r, y2 * au_r, z2 * au_r))
     
@@ -349,140 +349,16 @@ class System:
                 end = timer()
         return (end - start) / ntimes
     
-    def draw(self, ax, t, r1, r2, ld_params=None, cmap=plt.cm.copper, fill=True):
-        
-        if isinstance(t, np.ndarray):
-            raise Exception("Argument t should be a scalar, not an array.")
-            
-        x1, y1, z1, x2, y2, z2 = self.kep.coords(np.array([t]), self.pdict)            
-        
-        b1 = plt.Circle(
-            (x1, y1),
-            radius=r1,
-            color='k',
-            fill=fill
-        )
-        b2 = plt.Circle(
-            (x2, y2),
-            radius=r2,
-            color='k',
-            fill=fill
-        )
-        if ld_params is None:
-            star = plt.Circle((0, 0), radius=1, color=cmap(1.0), fill=True)
-            ax.add_patch(star)
-        
-        else:
-            u1, u2 = ld_params
-            
-            d = 0.01
-            x = np.arange(-1.0, 1.0, d)
-            y = np.arange(-1.0, 1.0, d)
-            x, y = np.meshgrid(x, y)
-            shape = np.shape(x)
-            x = x.flatten()
-            y = y.flatten()
-            z = np.zeros(len(x))
-            with np.errstate(invalid='ignore'):
-                for i, (x, y) in enumerate(zip(x, y)):
-                    z[i] = 1 - u1 * (1 - np.sqrt(1 - x**2 - y**2)) - u2 * (1 - np.sqrt(1 - x**2 - y**2))**2
-            z = z.reshape(shape)
-            
-            cmap = cmap
-            cmap.set_bad('white')
-
-            edge = plt.Circle(
-                (0.005, -0.0), 
-                radius=1.0, 
-                color='w',
-                fill=False, 
-                linewidth=4
-            )
-            
-            ax.imshow(z, interpolation='bilinear', extent=(-1, 1, -1, 1), cmap=cmap)
-            ax.add_patch(edge)
-            
-        ax.add_patch(b1)
-        ax.add_patch(b2)
-        ax.set_xlim(-2, 2)
-        ax.set_ylim(-2, 2)
-        ax.set_axis_off()
-        
-    def animate(self, fig, t, r1, r2, duration=5, ld_params=None, cmap=plt.cm.copper):
-        
-        t = np.ascontiguousarray(t)
-        ax = fig.gca()
-            
-        x1, y1, z1, x2, y2, z2 = self.kep.coords(t, self.pdict)
-        
-        if ld_params is None:
-            star = plt.Circle((0, 0), radius=1, color=cmap(1.0), fill=True)
-            ax.add_patch(star)
-        
-        else:
-            u1, u2 = ld_params
-            
-            d = 0.01
-            x = np.arange(-1.0, 1.0, d)
-            y = np.arange(-1.0, 1.0, d)
-            x, y = np.meshgrid(x, y)
-            shape = np.shape(x)
-            x = x.flatten()
-            y = y.flatten()
-            z = np.zeros(len(x))
-            with np.errstate(invalid='ignore'):
-                for i, (x, y) in enumerate(zip(x, y)):
-                    z[i] = 1 - u1 * (1 - np.sqrt(1 - x**2 - y**2)) - u2 * (1 - np.sqrt(1 - x**2 - y**2))**2
-            z = z.reshape(shape)
-            
-            cmap = cmap
-            cmap.set_bad('white')
-
-            edge = plt.Circle(
-                (0.005, -0.0), 
-                radius=1.0, 
-                color='w',
-                fill=False, 
-                linewidth=4
-            )
-        
-            ax.imshow(z, interpolation='bilinear', extent=(-1, 1, -1, 1), cmap=cmap)
-            ax.add_patch(edge)
-        
-        interval = int(duration * 1000 / len(t))
-        
-        p_patch = ax.add_patch(plt.Circle((0, 0), 0, color='k'))
-        m_patch = ax.add_patch(plt.Circle((0, 0), 0, color='k'))
-        
-        ax.set_xlim(-2, 2)
-        ax.set_ylim(-2, 2)
-        
-        ax.set_axis_off()
-        
-        def init():
-
-            p_patch.set_center((0, 0))
-            p_patch.set_radius(r1)
-            m_patch.set_center((0, 0))
-            m_patch.set_radius(r2)
-            return p_patch, m_patch
-        
-        def update(i):
-
-            p_patch.set_center((x1[i], y1[i]))
-            m_patch.set_center((x2[i], y2[i]))
-            return p_patch, m_patch
-        
-        return animation.FuncAnimation(
-            fig, 
-            update, 
-            frames=np.arange(len(t)), 
-            init_func=init, 
-            blit=True, 
-            interval=interval
-        )
-    
 class ConfocalSystem(System):
+    
+    """
+    Represents a system with two bodies 
+    orbiting a central star. 
+    
+    Args:
+        o1 (PrimaryOrbit): The orbit of the first body 
+        o2 (ConfocalOrbit): The orbit of the second body
+    """
     
     def __init__(self, o1, o2):
         super().__init__(o1, o2)
@@ -498,6 +374,18 @@ class ConfocalSystem(System):
         self.kep = Kepler(self.argnames, conflib)
         
 class HierarchicalSystem(System):
+    
+    """
+    Represents a system with a primary body orbiting 
+    a central star and a satellite orbiting the 
+    primary body.
+    
+    Args:
+        o1 (PrimaryOrbit): The orbit of the primary 
+                           body around the central star
+        o2 (SatelliteOrbit): The orbit of the satellite around 
+                             the primary body.
+    """
     
     def __init__(self, o1, o2):
         super().__init__(o1, o2)

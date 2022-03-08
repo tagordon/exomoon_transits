@@ -77,7 +77,9 @@ class Kepler:
             for a in range(3)
         )
         dbp, dbpm, dtheta = tuple(
-            ((ctypes.c_double * j) * len(self.args)).from_buffer(np.zeros((j, len(self.args)))) 
+            (
+                (ctypes.c_double * j) * len(self.args)
+            ).from_buffer(np.zeros((j, len(self.args)))) 
             for a in range(3)
         )
         t = byref((ctypes.c_double * j).from_buffer(t))
