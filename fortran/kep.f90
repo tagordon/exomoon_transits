@@ -11,46 +11,6 @@ real*8, parameter :: if13 = 1.d0 / (6.d0 * 20 * 42 * 72 * 110 * 156), if15 = 1.d
 
 contains
 
-subroutine kepler_solve(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve")
-
-    integer :: j, i
-    real*8 :: tol, err, x, ecc
-    real (c_double), bind(C), dimension(j) :: M
-    real (c_double), bind(C), dimension(j), intent(out) :: cosf, sinf
-    real*8, dimension(j) :: tanfhalf, tanfhalf2, denom, E, sE, cE
-    
-    if (ecc .lt. 1.d-10) then
-        cE = Cos(M)
-        sE = Sin(M)
-        
-        tanfhalf = sE / (1.d0 + cE)
-        tanfhalf2 = tanfhalf * tanfhalf
-        denom = 1.d0 / (tanfhalf2 + 1.d0)
-        cosf = (1.d0 - tanfhalf2) * denom
-        sinf = 2 * tanfhalf * denom
-    else
-        tol = 1.d-15
-        
-        E = M
-        x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
-        
-        do i=1,j,1
-            err = 1.d0
-            do while (abs(err) .gt. tol)
-                err = - (E(i) - ecc * Sin(E(i)) - M(i)) / (1.d0 - ecc * Cos(E(i)))
-                E(i) = E(i) + err
-            end do
-        end do    
-        
-        cE = Cos(E)
-        tanfhalf = x * Sin(E) / (1.d0 + cE)
-        tanfhalf2 = tanfhalf * tanfhalf
-        denom = 1.d0 / (tanfhalf2 + 1.d0)
-        cosf = (1.d0 - tanfhalf2) * denom
-        sinf = 2 * tanfhalf * denom
-    end if
-end
-
 function sine(x)
 
     real*8 :: sine
@@ -92,7 +52,7 @@ subroutine kepler_solve_RPP(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve_RP
     integer :: i, k
     real*8, bind(C) :: ecc
     real*8, dimension(j), bind(C) :: M, cosf, sinf 
-    real*8, dimension(j) :: tanfhalf, tanfhalf2, d
+    real*8 :: tanfhalf, tanfhalf2, d
     real*8 :: g2s_e, g3s_e, g4s_e, g5s_e, g6s_e
     real*8, dimension(0:12) :: bounds
     real*8, dimension(0:8) :: EA_tab
@@ -200,62 +160,22 @@ subroutine kepler_solve_RPP(M, ecc, cosf, sinf, j) bind(C, name="kepler_solve_RP
             sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE * (1.d0 - dEA * dEA * o6))
             cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE * (1.d0 - dEA * dEA * o6)
         end if
+        
+        denom = 1.d0 + cosf(i)
+        if (denom .gt. 1.d-10) then 
+            x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
+            tanfhalf = x * sinf(i) / (1.d0 + cosf(i))
+            tanfhalf2 = tanfhalf * tanfhalf
+            d = 1.d0 / (tanfhalf2 + 1.d0)
+            cosf(i) = (1.d0 - tanfhalf2) * d
+            sinf(i) = 2 * tanfhalf * d
+        else
+            cosf(i) = -1.d0
+            sinf(i) = 0.d0
+        end if
+        
     end do
     
-    x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
-    tanfhalf = x * sinf / (1.d0 + cosf)
-    tanfhalf2 = tanfhalf * tanfhalf
-    d = 1.d0 / (tanfhalf2 + 1.d0)
-    cosf = (1.d0 - tanfhalf2) * d
-    sinf = 2 * tanfhalf * d
-    
-end
-
-subroutine grad_kepler_solve(M, ecc, cosf, sinf, f_e, f_M, j) bind(C, name="grad_kepler_solve")
-
-    integer :: j, i
-    real*8 :: tol, err, x, ecc
-    real (c_double), bind(C), dimension(j) :: M
-    real (c_double), bind(C), dimension(j), intent(out) :: cosf, sinf, f_e, f_M
-    real*8, dimension(j) :: tanfhalf, tanfhalf2, denom, E, sE, cE
-    
-    if (ecc .lt. 1.d-10) then
-        cE = Cos(M)
-        sE = Sin(M)
-        
-        tanfhalf = sE / (1.d0 + cE)
-        tanfhalf2 = tanfhalf * tanfhalf
-        denom = 1.d0 / (tanfhalf2 + 1.d0)
-        cosf = (1.d0 - tanfhalf2) * denom
-        sinf = 2 * tanfhalf * denom
-        
-        f_M = 1.d0
-        f_e = 2.d0 * sinf
-    else
-        tol = 1.d-10
-        
-        E = M
-        x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
-        
-        do i=1,j,1
-            err = 10.d0
-            do while (abs(err) .gt. tol)
-                err = - (E(i) - ecc * Sin(E(i)) - M(i)) / (1.d0 - ecc * Cos(E(i)))
-                E(i) = E(i) + err
-            end do
-        end do    
-        
-        cE = Cos(E)
-        tanfhalf = x * Sin(E) / (1.d0 + cE)
-        tanfhalf2 = tanfhalf * tanfhalf
-        denom = 1.d0 / (tanfhalf2 + 1.d0)
-        cosf = (1.d0 - tanfhalf2) * denom
-        sinf = 2 * tanfhalf * denom
-        
-        x = 1.d0 - ecc**2.d0
-        f_M = (1.d0 + ecc * cosf)**2.d0 / x**1.5d0
-        f_e = (2.d0 + ecc * cosf) * sinf / x
-    end if
 end
 
 ! pretty much verbatim from DFM's exoplanet code 
@@ -263,7 +183,8 @@ subroutine grad_kepler_solve_RPP(M, ecc, cosf, sinf, f_e, f_M, j)
 
     integer :: j, i, k
     real*8 :: ecc
-    real*8, dimension(j) :: M, cosf, sinf, tanfhalf, tanfhalf2, d
+    real*8, dimension(j) :: M, cosf, sinf
+    real*8 :: tanfhalf, tanfhalf2, d
     real*8, dimension(j) :: f_e, f_M
     real*8 g2s_e, g3s_e, g4s_e, g5s_e, g6s_e
     real*8, dimension(0:12) :: bounds
@@ -372,14 +293,21 @@ subroutine grad_kepler_solve_RPP(M, ecc, cosf, sinf, f_e, f_M, j)
             sinf(i) = MAsign * (sE * (1.d0 - 0.5 * dEA * dEA) + dEA * cE * (1.d0 - dEA * dEA * o6))
             cosf(i) = cE * (1.d0 - 0.5 * dEA * dEA) - dEA * sE * (1.d0 - dEA * dEA * o6)
         end if
+        
+        denom = 1.d0 + cosf(i)
+        if (denom .gt. 1.d-10) then 
+            x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
+            tanfhalf = x * sinf(i) / (1.d0 + cosf(i))
+            tanfhalf2 = tanfhalf * tanfhalf
+            d = 1.d0 / (tanfhalf2 + 1.d0)
+            cosf(i) = (1.d0 - tanfhalf2) * d
+            sinf(i) = 2 * tanfhalf * d
+        else
+            cosf(i) = -1.d0
+            sinf(i) = 0.d0
+        end if
+        
     end do
-    
-    x = Sqrt((1.d0 + ecc) / (1.d0 - ecc))
-    tanfhalf = x * sinf / (1.d0 + cosf)
-    tanfhalf2 = tanfhalf * tanfhalf
-    d = 1.d0 / (tanfhalf2 + 1.d0)
-    cosf = (1.d0 - tanfhalf2) * d
-    sinf = 2 * tanfhalf * d
     
     x = 1.d0 - ecc**2.d0
     f_M = (1.d0 + ecc * cosf)**2.d0 / x**1.5d0

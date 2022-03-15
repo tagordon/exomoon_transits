@@ -254,14 +254,26 @@ subroutine grad_impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
             mu = b - (a - c)
         end if
             
-        theta(i) = 2 * Atan(Sqrt(((a - b) + c) * mu / ((a + (b + c)) * ((a - c) + b))))
+        if ((bpm(i) .eq. 0.d0) .or. ((a - b + c) .lt. 1.d-15)) then
+            theta(i) = 0.d0
+        else if ((a - c + b) .lt. 1.d-15) then 
+            theta(i) = pi
+        else
+            theta(i) = 2 * Atan(Sqrt(((a - b) + c) * mu / ((a + (b + c)) * ((a - c) + b))))
+        end if
     end do
     
-    sth = Sin(theta)
-    denom = 1.d0 / (bp2 * bpm2 * sth)
-    theta_bm = bm * bp * bpm * denom
-    theta_bp = ((bpm - bm) * (bpm + bm) - bp2) * 0.5 * bpm * denom
-    theta_bpm = ((bp - bm) * (bp + bm) - bpm2) * 0.5 * bp * denom
+    sth(i) = Sin(theta(i))
+    if (abs(sth(i)) .lt. 1.d-15) then 
+        theta_bm(i) = 0.d0
+        theta_bp(i) = 0.d0
+        theta_bpm(i) = 0.d0
+    else
+        denom(i) = 1.d0 / (bp2(i) * bpm2(i) * sth(i))
+        theta_bm(i) = bm(i) * bp(i) * bpm(i) * denom(i)
+        theta_bp(i) = ((bpm(i) - bm(i)) * (bpm(i) + bm(i)) - bp2(i)) * 0.5 * bpm(i) * denom(i)
+        theta_bpm(i) = ((bp(i) - bm(i)) * (bp(i) + bm(i)) - bpm2(i)) * 0.5 * bp(i) * denom(i)
+    end if 
     
     do i=1,13,1
         dbm(:, i) = bm_xm * dxm(:, i) + bm_ym * dym(:, i)
@@ -322,7 +334,7 @@ subroutine impacts(t, ap, t0p, ep, Pp, wp, ip, am, &
             mu = b - (a - c)
         end if
         
-        if ((bpm(i) .eq. 0.d0) .or. ((a - b + c) .lt. 1.d-15)) then
+        if ((bpm(i) .lt. 1.d-15) .or. ((a - b + c) .lt. 1.d-15)) then
             theta(i) = 0.d0
         else if ((a - c + b) .lt. 1.d-15) then 
             theta(i) = pi

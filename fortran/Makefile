@@ -7,8 +7,8 @@ ellip.o:
 	gfortran -g -shared -Ofast -unroll=12 -c ellip.f90
 
 kepler: kep.o
-	gfortran -g -shared -Ofast -unroll=12 -c conf.f90
-	gfortran -g -shared -Ofast -unroll=12 -c hrch.f90
+	gfortran -g -shared -Ofast -unroll=12 -fmax-stack-var-size=100000 -c conf.f90
+	gfortran -g -shared -Ofast -unroll=12 -fmax-stack-var-size=100000 -c hrch.f90
 
 kep.o:
 	gfortran -g -shared -Ofast -c -unroll=5 -fmax-stack-var-size=100000 kep.f90

@@ -336,6 +336,7 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                                      dbm, .FALSE., .FALSE., .FALSE.)) * of0
                             end if
                         else
+                            ! Case F
                             ! planet fully overlaps star, moon partially overlaps star, both overlap each other 
                             call bm_x(bp(i), bm(i), bpm(i), cth(i), sth(i), dbm)
                             call phis(rp, rm, bp(i), bm(i), bpm(i), cth(i), sth(i), pp1, pp2, pm1, pm2, pp_rp, pp_rm, pp_bpm, &
@@ -393,6 +394,7 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                                 - F(ld, kp, rp, bp(i), kp_rp, 0.d0, kp_bp, 0.d0, 0.d0, &
                                                     dbm0, .TRUE., .TRUE.)) * of0
                             else
+                                ! bookmark
                                 !call compute_theta(rp,  bp(i), theta, phip, theta_bp, theta_rp, phip_bp, phip_rp)
                                 !call compute_theta(rm,  bm(i), theta, phim, theta_bm, theta_rm, phim_bm, phim_rm)
                                 call kappas_p(rp, bp(i), kp, kps, kp_rp, kp_bp, kps_rp, kps_bp)
@@ -418,8 +420,13 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                     b = a
                                     a = tmp
                                 end if
-                                delta = Sqrt((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)))
-                                phi = Atan2(delta, (bm(i) - bpm(i)) * (bm(i) + bpm(i)) + bp(i) * bp(i))                                
+                                delta = (a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c))
+                                if (delta .lt. 0.d0) then
+                                    delta = 0.d0
+                                else
+                                    delta = Sqrt(delta)
+                                end if
+                                phi = Atan2(delta, (bm(i) - bpm(i)) * (bm(i) + bpm(i)) + bp(i) * bp(i))   
                                 
                                 call phis(rp, rm, bp(i), bm(i), bpm(i), cth(i), sth(i), pp1, pp2, pm1, pm2, pp_rp, pp_rm, pp_bpm, &
                                           pm_rp, pm_rm, pm_bpm, thetam_bp, thetam_bpm, thetam_theta)
@@ -449,9 +456,12 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                                               -pm_rp, -pm_rm, thetam_bp, -pm_bpm + thetam_bpm, thetam_theta, &
                                                               dbm, .FALSE., .FALSE., .FALSE.)) * of0
                                         end if
+    
                                 else if (phi + kps .le. kms) then
+                                
                                     call bm_x(bp(i), bm(i), bpm(i), cth(i), sth(i), dbm)
                                     if ((bp(i) - rp) .le. (bm(i) - rm)) then
+                                        ! Case L
                                         ! planet and moon both partially overlap the star and each other but the 
                                         ! planet-star intersections are overlapped by the moon
                                         lc(:, i) = (2 * Fstar(ld, pi - kms, 0.d0, -kms_rm, -kms_bp, -kms_bpm, -kms_theta) &
@@ -540,7 +550,7 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
         end if
         lc(:, i) = lc(:, i) - f0 * of0
 1   end do
-    return
+2   return
     
 end
 
