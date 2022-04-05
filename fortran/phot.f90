@@ -263,8 +263,12 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
     do i=1,j,1
     
         lc(:, i) = f0 * of0
-    
-        if (bpm(i) .gt. rp + rm) then
+        
+        if (rp .gt. 1.d0 + bp(i)) then
+            lc(:, i) = 0.d0
+        else if (rm .gt. 1.d0 + bm(i)) then 
+            lc(:, i) = 0.d0
+        else if (bpm(i) .gt. rp + rm) then
             ! moon and planet don't overlap each other 
             if (bp(i) .lt. 1.d0 - rp) then
                 ! planet completely inside star
@@ -432,7 +436,7 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                           pm_rp, pm_rm, pm_bpm, thetam_bp, thetam_bpm, thetam_theta)
                                 
                                 if (phi + kms .le. kps) then  
-                                        if (pp2 .gt. kp) then
+                                        if (abs(pp2) .gt. kp) then
                                             ! planet and moon both partially overlap the star and each other but the 
                                             ! moon-star overlap is contained within the planet-star overlap
                                             lc(:, i) = 2 * (Fstar(ld, pi - kps, -kps_rp, 0.d0, -kps_bp, 0.d0, 0.d0) &
@@ -492,12 +496,16 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                     if ((d1 .gt. 1.d0) .AND. (d2 .gt. 1.d0)) then
                                         ! planet and moon both partially overlap star and each other, 
                                         ! but the planet/moon overlap does not overlap the star
-                                        lc(:, i) = 2 * (Fstar(ld, pi - (kps + kms), -kps_rp, -kms_rm, &
+                                        if (pp1 * pp2 .lt. 0.d0) then
+                                            lc(:, i) = 0.d0
+                                        else
+                                            lc(:, i) = 2 * (Fstar(ld, pi - (kps + kms), -kps_rp, -kms_rm, &
                                                               -(kps_bp + kms_bp), -kms_bpm, -kms_theta) &
                                                         - F(ld, kp, rp, bp(i), kp_rp, 0.d0, kp_bp, 0.d0, 0.d0, &
                                                             dbm0, .TRUE., .TRUE.) &
                                                         - F(ld, km, rm, bm(i), 0.d0, km_rm, km_bp, km_bpm, km_theta, &
                                                             dbm, .FALSE., .TRUE.)) * of0
+                                        end if
                                     else if ((d1 .le. 1.d0) .AND. (d2 .le. 1.d0)) then
                                         ! planet and moon both partially overlap star and each other, 
                                         ! with the planet/moon overlap fully overlapping the star
@@ -871,13 +879,17 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
         Fl_phi = 0.d0
         Fl_r = 0.d0
         Fl_b = 0.d0        
-    else          
+    else
+    
+        y = Sqrt(br)
+        oy = 1.d0 / y
+        x = b2 + r2 - 2 * br * cphi
+        ox = 1.d0 / (b2 + r2 - 2 * br * cphi)
+
+        pr = - b * sphi * o3 * ox
+        pb = r * sphi * o3 * ox
+    
         if (bpr .gt. 1.d0) then
-        
-            y = Sqrt(br)
-            oy = 1.d0 / y
-            x = b2 + r2 - 2 * br * cphi
-            ox = 1.d0 / (b2 + r2 - 2 * br * cphi)
             
             alpha = 2 * y * (7 * r2 + b2 - 4.d0) * o9
             beta = -(3.d0 + 2*r*(b2 * b + 5 * b2 * r + 3*r*(-2.d0 + r2) + b*(-4.d0 + 7*r2))) * o9 * 0.5 * oy
@@ -895,9 +907,6 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
             if (limbflag) then
             
                 d = phi * o3 * 0.5 - Atan(bpr * tphihalf * obmr) * o3
-                pr = - b * sphi * o3 * ox
-                pb = r * sphi * o3 * ox
-                
                 Fl_phi = (r2 - br * cphi) * o3 * ox
                 
                 o = 1.d0
@@ -918,11 +927,10 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
 
                 Fl_phi = o3 * (1.d0 - z ** 3.d0) * (r2 - br * cphi) * ox
 
-                pr = 2 * ((1.d0 - x)**(1.5d0) - 1.d0) * b * sphi * o3 * 0.5d0 * ox
-                pb = (1.d0 - (1.d0 + x) * Sqrt(1.d0 - x)) * r * sphi * o3 * ox
+                pr = - ((1.d0 - x)**(1.5d0) - 1.d0) * pr
+                pb = (1.d0 - (1.d0 + x) * Sqrt(1.d0 - x)) * pb
                                         
                 tans = 1.d0 / Sqrt(m / (sphihalf * sphihalf) - 1.d0)
-                
                 o = 1.d0
                 ellippi = el3((tans), (sqomm), 1.d0 - n)
                 ellipe = el2((tans), (sqomm), (o), (1.d0 - m))
@@ -939,8 +947,6 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
             
         else
         
-            x = (b2 + r2 - 2 * br * cphi)
-            ox = 1.d0 / x
             y = Sqrt((1.d0 - bmr) * (1.d0 + bmr))
             oy = 1.d0 / y
             
@@ -953,12 +959,12 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
             
             sqomm = Sqrt(1.d0 - m)
             
+            pr = - ((1.d0 - x)**(1.5d0) - 1.d0) * 0.5d0 * pr
+            pb = (1.d0 - (1.d0 + x) * Sqrt(1.d0 - x)) * pb
+            
             ur = 2 * r * y
-            pr = ((1.d0 - x)**(1.5d0) - 1.d0) * b * sphi * o3 * 0.5d0 * ox
-                
             ub = y * ((b + 1.d0) * (b - 1.d0) + r2) / (3 * b)
             vb = (b2 * b2 + ((r - 1.d0) * (r + 1.d0))**2.d0 - 2 * b2 * (1.d0 + r2)) / (3 * b * y) 
-            pb = (1.d0 - (1.d0 + x) * Sqrt(1.d0 - x)) * r * sphi * o3 * ox
             
             d = o3 * (phi * 0.5 - Atan(bpr * tphihalf * obmr)) &
                 - 2 * br * o9 * sphi * Sqrt(1.d0 - x)
