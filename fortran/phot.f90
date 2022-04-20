@@ -326,6 +326,7 @@ subroutine flux(c1, c2, rp, rm, bp, bpm, cth, sth, lc, j) bind(C, name="flux")
                                 lc(:, i) = (f0 - 2 * Fcomplete(ld, rp, bp(i), dbm0, .TRUE.)) * of0
                             else
                                 ! Case E
+                                ! bookmark
                                 ! moon and planet both overlap star, moon and planet partially overlap each other 
                                 call bm_x(bp(i), bm(i), bpm(i), cth(i), sth(i), dbm)
                                 call phis(rp, rm, bp(i), bm(i), bpm(i), cth(i), sth(i), pp1, pp2, pm1, pm2, pp_rp, pp_rm, pp_bpm, &
@@ -884,7 +885,7 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
         y = Sqrt(br)
         oy = 1.d0 / y
         x = b2 + r2 - 2 * br * cphi
-        ox = 1.d0 / (b2 + r2 - 2 * br * cphi)
+        ox = 1.d0 / x
 
         pr = - b * sphi * o3 * ox
         pb = r * sphi * o3 * ox
@@ -959,7 +960,7 @@ function F(ld, phi, r, b, phi_rp, phi_rm, phi_bp, phi_bpm, phi_theta, dbm, pflag
             
             sqomm = Sqrt(1.d0 - m)
             
-            pr = - ((1.d0 - x)**(1.5d0) - 1.d0) * 0.5d0 * pr
+            pr = - ((1.d0 - x)**(1.5d0) - 1.d0) * pr
             pb = (1.d0 - (1.d0 + x) * Sqrt(1.d0 - x)) * pb
             
             ur = 2 * r * y
