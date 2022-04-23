@@ -327,8 +327,8 @@ class System:
             }
             
             # order?
-            grad['r2'] = f[1]
-            grad['r1'] = f[2]
+            grad['r1'] = f[1]
+            grad['r2'] = f[2]
             grad['u1'] = f[6]
             grad['u2'] = f[7]
             
@@ -350,7 +350,7 @@ class System:
                 np.sin(theta)
             )
                     
-    def loglike(self, y, t, u1, u2, r1, r2, sigma, integrate=None, dt=None):
+    def loglike(self, y, t, u1, u2, r1, r2, sigma, integrate=None, dt=None, grad=False, sign=1):
         
         """
         Get the log-likelihood of the lightcurve.
@@ -366,9 +366,18 @@ class System:
             sigma: The standard deviation of the model
         """
         
-        mu = self.lightcurve(t, u1, u2, r1, r2, integrate=None, dt=None)
-        s2 = sigma * sigma
-        return -0.5 * np.sum((y - mu) ** 2 / s2 + np.log(s2))
+        if grad:
+            mu, jac = self.lightcurve(t, u1, u2, r1, r2, integrate=integrate, dt=dt, grad=True)
+            s2 = sigma * sigma
+            jac = np.array(list(jac.values()))
+            ll = -0.5 * np.sum((y - mu) ** 2 / s2 + np.log(s2))
+            dldsig = np.sum((y - mu) ** 2 / (s2 * sigma) - 1 / sigma)
+            dldx = np.sum((y - mu) * jac / s2, axis=1)
+            return sign * ll, sign * np.hstack([dldsig, dldx])
+        else:
+            mu = self.lightcurve(t, u1, u2, r1, r2, integrate=None, dt=None)
+            s2 = sigma * sigma
+            return sign * -0.5 * np.sum((y - mu) ** 2 / s2 + np.log(s2))
 
     def time(self, t, u1, u2, r1, r2, phot_only=False, grad=False, ntimes=1):
         
